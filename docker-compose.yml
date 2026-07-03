@@ -1,0 +1,35 @@
+services:
+  backend:
+    container_name: mullhouse-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    expose:
+      - "8000"
+    volumes:
+      - sqlite_data:/app/db
+    environment:
+      - DEBUG=${DEBUG:-0}
+    restart: unless-stopped
+
+  frontend:
+    container_name: mullhouse-frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+
+  nginx:
+    container_name: mullhouse-nginx
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:

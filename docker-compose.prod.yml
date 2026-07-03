@@ -1,0 +1,29 @@
+services:
+  backend:
+    container_name: mullhouse-backend
+    image: ghcr.io/atsushiutsumi/mullhouse:mullhouse-backend
+    expose:
+      - "8000"
+    volumes:
+      - sqlite_data:/app/db
+    environment:
+      - DEBUG=${DEBUG:-0}
+    restart: unless-stopped
+
+  frontend:
+    container_name: mullhouse-frontend
+    image: ghcr.io/atsushiutsumi/mullhouse:mullhouse-frontend
+    restart: unless-stopped
+
+  nginx:
+    container_name: mullhouse-nginx
+    image: ghcr.io/atsushiutsumi/mullhouse:mullhouse-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
