@@ -204,6 +204,55 @@ input:focus, select:focus {
   color: var(--gold);
 }
 
+.board-cards {
+  margin-bottom: 1rem;
+}
+
+.board-cards-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.board-cards-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.playing-card {
+  width: 44px;
+  height: 60px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.playing-card-rank {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.playing-card-suit {
+  font-size: 1.1rem;
+  line-height: 1.1;
+}
+
+.playing-card.red {
+  color: #d0342c;
+}
+
+.playing-card.black {
+  color: #1a1a1a;
+}
+
 .street-row {
   display: flex;
   align-items: center;

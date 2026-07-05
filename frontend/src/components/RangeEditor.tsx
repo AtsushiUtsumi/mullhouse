@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
+import { BoardCards } from './PlayingCard'
 import { HandMatrix } from './HandMatrix'
 import { SolverResults } from './SolverResults'
 import { getActions, listRanges, loadRange, saveRange, solveRange } from '../api'
 import type { PlayerType, RangeData, RangeListItem, SolverResult, Street } from '../types'
 import {
   actionLabel,
+  cardsForStreet,
   carryForwardRange,
   formatBoardDisplay,
   lineToFilename,
   POSITIONS,
+  SAMPLE_RANGES_BY_POSITION,
   STREET_ACTIONS,
   validateBoard,
 } from '../utils/hands'
@@ -168,9 +171,14 @@ export function RangeEditor() {
   }
 
   const loadSampleRange = () => {
-    setHeroRange({ AA: 1, AKs: 1, AQs: 0.75, KQs: 0.5, JJ: 1, TT: 0.75 })
-    setVillainRange({ ATs: 1, '88': 1, '65s': 0.5, AJo: 0.75, KQo: 0.5 })
-    setMessage('サンプルレンジを読み込みました')
+    const sample = SAMPLE_RANGES_BY_POSITION[position]
+    if (!sample) {
+      setMessage('このポジションのサンプルレンジはありません')
+      return
+    }
+    setHeroRange({ ...sample.hero })
+    setVillainRange({ ...sample.villain })
+    setMessage(`${position} のサンプルレンジを読み込みました`)
   }
 
   return (
@@ -270,6 +278,7 @@ export function RangeEditor() {
       </section>
 
       <section className="panel matrix-panel">
+        <BoardCards cards={cardsForStreet(board, currentStreet)} street={currentStreet} />
         <div className="player-tabs">
           <button
             type="button"
