@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { getHandLabel, freqColor, nextFreq, RANKS } from '../utils/hands'
+import { getHandLabel, freqColor, toggleFreq, RANKS } from '../utils/hands'
 
 interface HandMatrixProps {
   range: Record<string, number>
@@ -13,7 +13,7 @@ export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false
   const handleClick = (hand: string) => {
     if (readOnly) return
     const current = range[hand] ?? 0
-    onChange(hand, nextFreq(current))
+    onChange(hand, toggleFreq(current))
   }
 
   const comboCount = Object.values(range).reduce((sum, f) => sum + (f > 0 ? f : 0), 0)

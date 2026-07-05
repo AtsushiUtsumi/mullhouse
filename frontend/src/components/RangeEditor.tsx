@@ -23,6 +23,7 @@ export function RangeEditor() {
   const [riverAction, setRiverAction] = useState('river_b60')
   const [currentStreet, setCurrentStreet] = useState<Street>('preflop')
   const [activePlayer, setActivePlayer] = useState<PlayerType>('hero')
+  const [configOpen, setConfigOpen] = useState(false)
 
   const [heroRange, setHeroRange] = useState<Record<string, number>>({})
   const [villainRange, setVillainRange] = useState<Record<string, number>>({})
@@ -175,85 +176,96 @@ export function RangeEditor() {
   return (
     <div className="range-editor">
       <section className="panel config-panel">
-        <h2>レンジ設定</h2>
-        <div className="form-grid">
-          <label>
-            ポジション
-            <select value={position} onChange={(e) => setPosition(e.target.value)}>
-              {POSITIONS.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            ボード
-            <input
-              type="text"
-              value={board}
-              onChange={(e) => setBoard(e.target.value)}
-              placeholder="As5dTc6h8c"
-              maxLength={10}
-            />
-          </label>
-          {board.length === 10 && validateBoard(board) && (
-            <div className="board-display">{formatBoardDisplay(board)}</div>
-          )}
+        <div className="config-panel-header">
+          <h2>レンジ設定</h2>
+          <button type="button" className="btn" onClick={() => setConfigOpen((v) => !v)}>
+            {configOpen ? 'レンジ設定を閉じる' : 'レンジ設定を開く'}
+          </button>
         </div>
+        {configOpen && (
+          <>
+            <div className="form-grid">
+              <label>
+                ポジション
+                <select value={position} onChange={(e) => setPosition(e.target.value)}>
+                  {POSITIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                ボード
+                <input
+                  type="text"
+                  value={board}
+                  onChange={(e) => setBoard(e.target.value)}
+                  placeholder="As5dTc6h8c"
+                  maxLength={10}
+                />
+              </label>
+              {board.length === 10 && validateBoard(board) && (
+                <div className="board-display">{formatBoardDisplay(board)}</div>
+              )}
+            </div>
 
-        <h3>プレーライン</h3>
-        <div className="line-selectors">
-          <label>
-            Flop
-            <select value={flopAction} onChange={(e) => setFlopAction(e.target.value)}>
-              {(actions.flop ?? STREET_ACTIONS.flop).map((a) => (
-                <option key={a} value={a}>{actionLabel(a)}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Turn
-            <select value={turnAction} onChange={(e) => setTurnAction(e.target.value)}>
-              {(actions.turn ?? STREET_ACTIONS.turn).map((a) => (
-                <option key={a} value={a}>{actionLabel(a)}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            River
-            <select value={riverAction} onChange={(e) => setRiverAction(e.target.value)}>
-              {(actions.river ?? STREET_ACTIONS.river).map((a) => (
-                <option key={a} value={a}>{actionLabel(a)}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="line-preview">
-          ファイル名: <code>{lineToFilename(line)}</code>
-        </div>
+            <h3>プレーライン</h3>
+            <div className="line-selectors">
+              <label>
+                Flop
+                <select value={flopAction} onChange={(e) => setFlopAction(e.target.value)}>
+                  {(actions.flop ?? STREET_ACTIONS.flop).map((a) => (
+                    <option key={a} value={a}>{actionLabel(a)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Turn
+                <select value={turnAction} onChange={(e) => setTurnAction(e.target.value)}>
+                  {(actions.turn ?? STREET_ACTIONS.turn).map((a) => (
+                    <option key={a} value={a}>{actionLabel(a)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                River
+                <select value={riverAction} onChange={(e) => setRiverAction(e.target.value)}>
+                  {(actions.river ?? STREET_ACTIONS.river).map((a) => (
+                    <option key={a} value={a}>{actionLabel(a)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="line-preview">
+              ファイル名: <code>{lineToFilename(line)}</code>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="panel street-panel">
         <h2>ストリート遷移</h2>
-        <div className="street-tabs">
-          {STREETS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`street-tab ${currentStreet === s ? 'active' : ''}`}
-              onClick={() => {
-                saveCurrentStreetRange()
-                setCurrentStreet(s)
-                setHeroRange(streetHeroRanges[s] ?? (s === 'preflop' ? heroRange : {}))
-                setVillainRange(streetVillainRanges[s] ?? (s === 'preflop' ? villainRange : {}))
-              }}
-            >
-              {s}
-            </button>
-          ))}
+        <div className="street-row">
+          <div className="street-tabs">
+            {STREETS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`street-tab ${currentStreet === s ? 'active' : ''}`}
+                onClick={() => {
+                  saveCurrentStreetRange()
+                  setCurrentStreet(s)
+                  setHeroRange(streetHeroRanges[s] ?? (s === 'preflop' ? heroRange : {}))
+                  setVillainRange(streetVillainRanges[s] ?? (s === 'preflop' ? villainRange : {}))
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn primary" onClick={advanceStreet}>
+            次ストリートへ引き継ぐ
+          </button>
         </div>
-        <button type="button" className="btn primary" onClick={advanceStreet}>
-          次ストリートへ引き継ぐ
-        </button>
         <p className="hint">選択済みハンドのみ次ストリートへ進み、未選択ハンドは除外されます。</p>
       </section>
 
@@ -284,7 +296,7 @@ export function RangeEditor() {
           hue={activePlayer === 'hero' ? 145 : 0}
           label={activePlayer === 'hero' ? 'Hero' : 'Villain'}
         />
-        <p className="hint">クリックで頻度を変更: 0% → 25% → 50% → 75% → 100% → 0%</p>
+        <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
       </section>
 
       <section className="panel actions-panel">

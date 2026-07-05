@@ -58,6 +58,10 @@ export function nextFreq(current: number): number {
   return FREQ_LEVELS[idx + 1]
 }
 
+export function toggleFreq(current: number): number {
+  return current > 0 ? 0 : 1
+}
+
 export function freqColor(freq: number, baseHue: number): string {
   if (freq <= 0) return 'transparent'
   const alpha = 0.25 + freq * 0.65
