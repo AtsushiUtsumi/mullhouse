@@ -53,6 +53,12 @@ export function RangeEditor() {
 
   const line = [flopAction, turnAction, riverAction]
 
+  const currentStreetAction =
+    currentStreet === 'flop' ? flopAction
+    : currentStreet === 'turn' ? turnAction
+    : currentStreet === 'river' ? riverAction
+    : null
+
   const refreshSavedRanges = useCallback(async () => {
     try {
       const ranges = await listRanges()
@@ -278,7 +284,11 @@ export function RangeEditor() {
       </section>
 
       <section className="panel matrix-panel">
-        <BoardCards cards={cardsForStreet(board, currentStreet)} street={currentStreet} />
+        <BoardCards
+          cards={cardsForStreet(board, currentStreet)}
+          street={currentStreet}
+          action={currentStreetAction ? actionLabel(currentStreetAction) : undefined}
+        />
         <div className="player-tabs">
           <button
             type="button"
@@ -294,10 +304,10 @@ export function RangeEditor() {
           >
             Villain レンジ
           </button>
-        </div>
-        <div className="matrix-actions">
-          <button type="button" className="btn" onClick={clearRange}>クリア</button>
-          <button type="button" className="btn" onClick={loadSampleRange}>サンプル</button>
+          <div className="matrix-actions">
+            <button type="button" className="btn" onClick={clearRange}>クリア</button>
+            <button type="button" className="btn" onClick={loadSampleRange}>サンプル</button>
+          </div>
         </div>
         <HandMatrix
           range={currentRange}

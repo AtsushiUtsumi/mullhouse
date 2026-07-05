@@ -22,9 +22,10 @@ export function PlayingCard({ card }: PlayingCardProps) {
 interface BoardCardsProps {
   cards: string[]
   street: string
+  action?: string
 }
 
-export function BoardCards({ cards, street }: BoardCardsProps) {
+export function BoardCards({ cards, street, action }: BoardCardsProps) {
   if (street === 'preflop') return null
 
   return (
@@ -34,6 +35,7 @@ export function BoardCards({ cards, street }: BoardCardsProps) {
         {cards.map((card, i) => (
           <PlayingCard key={`${card}-${i}`} card={card} />
         ))}
+        {action && <span className="board-cards-action">{action}</span>}
       </div>
     </div>
   )
