@@ -324,6 +324,7 @@ input:focus, select:focus {
   gap: 2px;
   min-width: 435px;
   max-width: 510px;
+  user-select: none;
 }
 
 .matrix-corner {

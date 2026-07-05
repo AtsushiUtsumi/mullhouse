@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { getHandLabel, freqColor, toggleFreq, RANKS } from '../utils/hands'
 
 interface HandMatrixProps {
@@ -10,10 +10,37 @@ interface HandMatrixProps {
 }
 
 export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false }: HandMatrixProps) {
-  const handleClick = (hand: string) => {
+  const draggingRef = useRef(false)
+  const dragValueRef = useRef(0)
+  const visitedRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const stopDragging = () => {
+      draggingRef.current = false
+      visitedRef.current.clear()
+    }
+    window.addEventListener('mouseup', stopDragging)
+    return () => window.removeEventListener('mouseup', stopDragging)
+  }, [])
+
+  const applyToHand = (hand: string, value: number) => {
+    if (visitedRef.current.has(hand)) return
+    visitedRef.current.add(hand)
+    onChange(hand, value)
+  }
+
+  const handleMouseDown = (hand: string) => {
     if (readOnly) return
     const current = range[hand] ?? 0
-    onChange(hand, toggleFreq(current))
+    const value = toggleFreq(current)
+    draggingRef.current = true
+    dragValueRef.current = value
+    applyToHand(hand, value)
+  }
+
+  const handleMouseEnter = (hand: string) => {
+    if (readOnly || !draggingRef.current) return
+    applyToHand(hand, dragValueRef.current)
   }
 
   const comboCount = Object.values(range).reduce((sum, f) => sum + (f > 0 ? f : 0), 0)
@@ -44,7 +71,9 @@ export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false
                   type="button"
                   className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''}`}
                   style={{ backgroundColor: freqColor(freq, hue) }}
-                  onClick={() => handleClick(hand)}
+                  onMouseDown={() => handleMouseDown(hand)}
+                  onMouseEnter={() => handleMouseEnter(hand)}
+                  onDragStart={(e) => e.preventDefault()}
                   title={`${hand}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`}
                 >
                   <span className="cell-hand">{hand}</span>
