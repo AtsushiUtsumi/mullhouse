@@ -51,6 +51,19 @@ body {
   letter-spacing: -0.02em;
 }
 
+.home-link {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+  transition: color 0.15s;
+}
+
+.home-link:hover {
+  color: var(--accent);
+}
+
 .subtitle {
   color: var(--text-muted);
   font-size: 0.85rem;
@@ -633,4 +646,81 @@ input:focus, select:focus {
 
 .arch-arrow {
   color: var(--text-muted);
+}
+
+.home {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1.5rem;
+}
+
+.home-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.home-header h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.home-header .subtitle {
+  margin-top: 0.5rem;
+}
+
+.home-main {
+  width: 100%;
+  max-width: 900px;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.app-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.app-card:not(.disabled):hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.app-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.app-card p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.app-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.coming-soon-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: var(--gold);
+  color: #0f1419;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
 }
