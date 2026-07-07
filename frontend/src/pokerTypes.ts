@@ -38,6 +38,7 @@ export interface PokerStatePayload {
   type: 'state'
   state: PokerGameState
   waiting_for: WaitingFor | null
+  rebuy_available: boolean
   events: PokerEvent[]
 }
 

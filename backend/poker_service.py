@@ -107,6 +107,21 @@ def compute_waiting_for(state: GameState, timeout_seconds: int) -> dict[str, Any
     }
 
 
+def compute_rebuy_available(state: GameState, max_players: int, viewer_player_id: str) -> bool:
+    """Whether `viewer_player_id` could (re)join with a fresh buy-in right now.
+
+    Only meaningful between hands (WAITING/SHOWDOWN), matching poker_domain's own
+    add_player/remove_player phase gate, so the frontend can hide/disable the
+    rebuy button instead of always offering it and failing.
+    """
+    if state.phase not in (GamePhase.WAITING, GamePhase.SHOWDOWN):
+        return False
+    seated = any(p.player_id == viewer_player_id for p in state.players)
+    if not seated and len(state.players) >= max_players:
+        return False
+    return True
+
+
 def serialize_event(ev: GameEvent) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     for key, value in ev.payload.items():
@@ -179,6 +194,7 @@ def build_payload(meta: TableMeta, player_id: str, events: list[GameEvent] | Non
         "type": "state",
         "state": serialize_state(state, meta.names),
         "waiting_for": compute_waiting_for(state, meta.timeout_seconds),
+        "rebuy_available": compute_rebuy_available(state, meta.max_players, player_id),
         "events": [serialize_event(e) for e in (events or [])],
     }
 
@@ -262,6 +278,22 @@ class PokerService:
                 self._schedule_auto_next_hand(meta)
         payload = build_payload(meta, player_id, events)
         await self._broadcast(meta, events)
+        return payload
+
+    async def rebuy(self, table_id: str, player_id: str, token: str, buy_in: int) -> dict[str, Any]:
+        meta = self.get_meta(table_id)
+        _require_auth(meta, player_id, token)
+        async with meta.lock:
+            state = meta.table.get_state()
+            seated = next((p for p in state.players if p.player_id == player_id), None)
+            if seated is not None and seated.chips.amount > 0:
+                raise InvalidActionError("チップが残っているためリバイできません")
+            if seated is not None:
+                meta.table.remove_player(player_id)
+            meta.table.add_player(player_id=player_id, chips=Chips(buy_in))
+            self._maybe_schedule_auto_start(meta)
+        payload = build_payload(meta, player_id)
+        await self._broadcast(meta)
         return payload
 
     def register_ws(self, meta: TableMeta, player_id: str, ws: WebSocket) -> None:

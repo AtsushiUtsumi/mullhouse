@@ -52,6 +52,17 @@ export async function leaveTable(tableId: string, creds: PokerCredentials): Prom
   await fetchJson(`/tables/${tableId}/leave`, { method: 'POST', body: JSON.stringify(creds) })
 }
 
+export async function rebuyTable(
+  tableId: string,
+  creds: PokerCredentials,
+  buyIn = 1000,
+): Promise<PokerStatePayload> {
+  return fetchJson(`/tables/${tableId}/rebuy`, {
+    method: 'POST',
+    body: JSON.stringify({ ...creds, buy_in: buyIn }),
+  })
+}
+
 export async function fetchTableState(
   tableId: string,
   creds: PokerCredentials,

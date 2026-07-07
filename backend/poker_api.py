@@ -37,6 +37,12 @@ class ActionRequest(BaseModel):
     amount: int | None = None
 
 
+class RebuyRequest(BaseModel):
+    player_id: str
+    token: str
+    buy_in: int = 1000
+
+
 def _raise_for_domain_error(e: PokerError) -> None:
     if isinstance(e, InvalidPlayerError):
         raise HTTPException(status_code=403, detail=str(e)) from e
@@ -101,6 +107,18 @@ def get_state(table_id: str, player_id: str, token: str) -> dict[str, Any]:
 async def submit_action(table_id: str, req: ActionRequest) -> dict[str, Any]:
     try:
         return await poker_service.submit_action(table_id, req.player_id, req.token, req.action, req.amount)
+    except TableNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Table not found") from e
+    except AuthError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+    except PokerError as e:
+        _raise_for_domain_error(e)
+
+
+@router.post("/tables/{table_id}/rebuy")
+async def rebuy(table_id: str, req: RebuyRequest) -> dict[str, Any]:
+    try:
+        return await poker_service.rebuy(table_id, req.player_id, req.token, req.buy_in)
     except TableNotFoundError as e:
         raise HTTPException(status_code=404, detail="Table not found") from e
     except AuthError as e:

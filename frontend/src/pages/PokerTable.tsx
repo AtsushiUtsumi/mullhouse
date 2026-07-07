@@ -8,6 +8,7 @@ import {
   joinTable,
   leaveTable,
   loadCredentials,
+  rebuyTable,
   saveCredentials,
   submitAction,
 } from '../pokerApi'
@@ -38,6 +39,7 @@ export function PokerTable() {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [betAmount, setBetAmount] = useState<number>(0)
+  const [rebuying, setRebuying] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
 
   const connect = useCallback(
@@ -115,6 +117,33 @@ export function PokerTable() {
     navigate('/poker')
   }
 
+  const handleRebuy = async () => {
+    if (!tableId || !creds) return
+    setRebuying(true)
+    setError('')
+    try {
+      const res = await rebuyTable(tableId, creds)
+      setPayload(res)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRebuying(false)
+    }
+  }
+
+  const handleGoHome = async () => {
+    if (tableId && creds) {
+      try {
+        await leaveTable(tableId, creds)
+      } catch {
+        // best-effort: the player may already be gone from the table server-side
+      }
+      clearCredentials(tableId)
+    }
+    wsRef.current?.close()
+    navigate('/')
+  }
+
   if (!tableId) return null
 
   if (!creds || !payload) {
@@ -148,10 +177,11 @@ export function PokerTable() {
     )
   }
 
-  const { state, waiting_for: waitingFor } = payload
+  const { state, waiting_for: waitingFor, rebuy_available: rebuyAvailable } = payload
   const isMyTurn = waitingFor?.player_id === creds.player_id
   const me = state.players.find((p) => p.player_id === creds.player_id)
   const handInProgress = state.phase !== 'WAITING' && state.phase !== 'SHOWDOWN'
+  const isBusted = (me !== undefined && me.chips === 0 && state.phase === 'SHOWDOWN') || me === undefined
 
   return (
     <div className="app">
@@ -161,9 +191,11 @@ export function PokerTable() {
           <h1>ポーカー対戦</h1>
           <p className="subtitle">{PHASE_LABELS[state.phase] ?? state.phase}</p>
         </div>
-        <button type="button" className="btn" onClick={handleLeave} disabled={handInProgress}>
-          卓を離れる
-        </button>
+        {!isBusted && (
+          <button type="button" className="btn" onClick={handleLeave} disabled={handInProgress}>
+            卓を離れる
+          </button>
+        )}
       </header>
 
       <main className="app-main">
@@ -211,7 +243,7 @@ export function PokerTable() {
             ))}
           </div>
 
-          {me && (
+          {me && !isBusted && (
             <div className="poker-action-bar">
               {waitingFor && isMyTurn ? (
                 <>
@@ -248,9 +280,36 @@ export function PokerTable() {
             </div>
           )}
 
-          {error && <p className="message">{error}</p>}
+          {!isBusted && error && <p className="message">{error}</p>}
         </section>
       </main>
+
+      {isBusted && (
+        <div className="poker-busted-overlay">
+          <div className="panel poker-busted-dialog">
+            <h2>チップがなくなりました</h2>
+            <p className="hint">
+              {rebuyAvailable
+                ? 'リバイして続けるか、ホームに戻るか選択してください。'
+                : '現在はリバイできません。ハンドの区切りをお待ちいただくか、ホームに戻ってください。'}
+            </p>
+            <div className="poker-action-bar">
+              <button
+                type="button"
+                className="btn accent"
+                onClick={handleRebuy}
+                disabled={!rebuyAvailable || rebuying}
+              >
+                {rebuying ? 'リバイ中...' : 'リバイ'}
+              </button>
+              <button type="button" className="btn primary" onClick={handleGoHome}>
+                ホームに戻る
+              </button>
+            </div>
+            {error && <p className="message">{error}</p>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

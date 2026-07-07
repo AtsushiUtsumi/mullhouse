@@ -834,3 +834,25 @@ input:focus, select:focus {
 .poker-bet-control input {
   width: 100px;
 }
+
+.poker-busted-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 25, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 10;
+}
+
+.poker-busted-dialog {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.poker-busted-dialog .poker-action-bar {
+  justify-content: center;
+  margin-top: 1rem;
+}
