@@ -320,6 +320,10 @@ export function PokerTable() {
                 (() => {
                   const betOrRaise = waitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
                   const otherActions = waitingFor.valid_actions.filter((a) => a !== 'bet' && a !== 'raise')
+                  // checking is free, so folding instead is never useful: only offer fold when facing a call
+                  const displayedActions = otherActions.includes('check')
+                    ? otherActions.filter((a) => a !== 'fold')
+                    : otherActions
                   return (
                     <div className="poker-action-bar-turn">
                       {betOrRaise && (
@@ -370,7 +374,7 @@ export function PokerTable() {
                         </>
                       )}
                       <div className="poker-action-row">
-                        {otherActions.map((action) => (
+                        {displayedActions.map((action) => (
                           <button
                             key={action}
                             type="button"
