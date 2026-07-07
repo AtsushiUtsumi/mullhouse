@@ -832,7 +832,7 @@ input:focus, select:focus {
   max-width: 760px;
   min-height: 380px;
   aspect-ratio: 16 / 10;
-  margin: 0 auto;
+  margin: 0 auto 6rem;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, #1e3a2f 0%, #16281f 70%, #0f1419 100%);
   border: 6px solid var(--surface2);

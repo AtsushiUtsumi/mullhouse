@@ -41,7 +41,7 @@ function orderSeatsFromViewer(players: PokerPlayerState[], viewerId: string): Po
 function seatPosition(i: number, total: number): { left: number; top: number } {
   const angle = ((180 - (i * 360) / total) * Math.PI) / 180
   const rx = 44
-  const ry = 40
+  const ry = 34
   return {
     left: 50 + rx * Math.sin(angle),
     top: 50 - ry * Math.cos(angle),
