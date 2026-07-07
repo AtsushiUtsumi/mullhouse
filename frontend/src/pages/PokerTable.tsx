@@ -80,10 +80,14 @@ export function PokerTable() {
   }, [tableId, connect])
 
   useEffect(() => {
-    if (payload?.state.big_blind) {
-      setBetAmount((prev) => prev || payload.state.big_blind)
+    if (!payload) return
+    const { phase, big_blind, pot } = payload.state
+    if (phase === 'PRE_FLOP') {
+      setBetAmount(big_blind * 2)
+    } else if (phase === 'FLOP' || phase === 'TURN' || phase === 'RIVER') {
+      setBetAmount(Math.max(big_blind, Math.round(pot * 0.1)))
     }
-  }, [payload?.state.big_blind])
+  }, [payload?.state.phase])
 
   const handleJoin = async () => {
     if (!tableId) return
