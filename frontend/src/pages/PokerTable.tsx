@@ -28,6 +28,26 @@ function clampBetAmount(state: PokerGameState, me: PokerPlayerState, amount: num
   return Math.min(Math.max(Math.round(amount), state.big_blind), max)
 }
 
+/** Rotates the seat list so the viewer's own seat comes first, keeping everyone
+ * else in their real table order (so dealer rotation still reads correctly). */
+function orderSeatsFromViewer(players: PokerPlayerState[], viewerId: string): PokerPlayerState[] {
+  const myIndex = players.findIndex((p) => p.player_id === viewerId)
+  if (myIndex === -1) return players
+  return players.map((_, i) => players[(myIndex + i) % players.length])
+}
+
+/** Position for seat `i` of `total`, arranged clockwise around an oval starting
+ * at the bottom (the viewer's own seat), as a percentage of the table's box. */
+function seatPosition(i: number, total: number): { left: number; top: number } {
+  const angle = ((180 - (i * 360) / total) * Math.PI) / 180
+  const rx = 44
+  const ry = 40
+  return {
+    left: 50 + rx * Math.sin(angle),
+    top: 50 - ry * Math.cos(angle),
+  }
+}
+
 const PHASE_LABELS: Record<string, string> = {
   WAITING: '待機中',
   PRE_FLOP: 'プレフロップ',
@@ -235,57 +255,63 @@ export function PokerTable() {
 
       <main className="app-main">
         <section className="panel poker-table-panel">
-          <div className="poker-pot-row">
-            <span className="rec-label">ポット</span>
-            <span className="rec-value">{state.pot}</span>
-          </div>
+          <div className="poker-table-oval">
+            <div className="poker-table-center">
+              <div className="poker-pot-row">
+                <span className="rec-label">ポット</span>
+                <span className="rec-value">{state.pot}</span>
+              </div>
 
-          {state.side_pots.length > 1 && (
-            <div className="poker-side-pots">
-              {state.side_pots.map((sidePot, i) => (
-                <span key={i}>
-                  {i === 0 ? 'メインポット' : `サイドポット${i}`}: {sidePot.amount}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="board-cards">
-            <span className="board-cards-label">コミュニティカード</span>
-            <div className="board-cards-row">
-              {state.community_cards.map((card, i) => (
-                <PlayingCard key={`${card}-${i}`} card={card} />
-              ))}
-              {state.community_cards.length === 0 && <span className="hint">-</span>}
-            </div>
-          </div>
-
-          <div className="poker-seats">
-            {state.players.map((p) => (
-              <div
-                key={p.player_id}
-                className={`poker-seat ${p.player_id === state.current_player_id ? 'active' : ''} ${p.folded ? 'folded' : ''} ${p.player_id === creds.player_id ? 'me' : ''}`}
-              >
-                <div className="poker-seat-name">
-                  {p.display_name}
-                  {p.player_id === state.dealer_id && <span className="poker-dealer-badge">D</span>}
+              {state.side_pots.length > 1 && (
+                <div className="poker-side-pots">
+                  {state.side_pots.map((sidePot, i) => (
+                    <span key={i}>
+                      {i === 0 ? 'メインポット' : `サイドポット${i}`}: {sidePot.amount}
+                    </span>
+                  ))}
                 </div>
-                <div className="poker-seat-chips">チップ: {p.chips}</div>
-                <div className="poker-seat-bet">ベット: {p.current_bet}</div>
-                {p.folded && <div className="poker-seat-status">フォールド</div>}
-                {p.is_all_in && <div className="poker-seat-status">オールイン</div>}
+              )}
+
+              <div className="board-cards">
+                <span className="board-cards-label">コミュニティカード</span>
                 <div className="board-cards-row">
-                  {p.hole_cards ? (
-                    p.hole_cards.map((card, i) => <PlayingCard key={`${card}-${i}`} card={card} />)
-                  ) : (
-                    <>
-                      <div className="playing-card back" />
-                      <div className="playing-card back" />
-                    </>
-                  )}
+                  {state.community_cards.map((card, i) => (
+                    <PlayingCard key={`${card}-${i}`} card={card} />
+                  ))}
+                  {state.community_cards.length === 0 && <span className="hint">-</span>}
                 </div>
               </div>
-            ))}
+            </div>
+
+            {orderSeatsFromViewer(state.players, creds.player_id).map((p, i) => {
+              const { left, top } = seatPosition(i, state.players.length)
+              return (
+                <div
+                  key={p.player_id}
+                  className={`poker-seat ${p.player_id === state.current_player_id ? 'active' : ''} ${p.folded ? 'folded' : ''} ${p.player_id === creds.player_id ? 'me' : ''}`}
+                  style={{ left: `${left}%`, top: `${top}%` }}
+                >
+                  <div className="poker-seat-name">
+                    {p.display_name}
+                    {p.player_id === state.dealer_id && <span className="poker-dealer-badge">D</span>}
+                  </div>
+                  <div className="poker-seat-chips">チップ: {p.chips}</div>
+                  <div className="poker-seat-bet">ベット: {p.current_bet}</div>
+                  {p.folded && <div className="poker-seat-status">フォールド</div>}
+                  {p.is_all_in && <div className="poker-seat-status">オールイン</div>}
+                  <div className="board-cards-row">
+                    {p.hole_cards ? (
+                      p.hole_cards.map((card, i2) => <PlayingCard key={`${card}-${i2}`} card={card} />)
+                    ) : (
+                      <>
+                        <div className="playing-card back" />
+                        <div className="playing-card back" />
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {me && !isGameOver && (
