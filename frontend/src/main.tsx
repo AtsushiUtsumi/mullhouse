@@ -5,6 +5,7 @@ import { Home } from './pages/Home'
 import { RangeApp } from './pages/RangeApp'
 import { PokerLobby } from './pages/PokerLobby'
 import { PokerTable } from './pages/PokerTable'
+import { PokerApiDocs } from './pages/PokerApiDocs'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<Home />} />
         <Route path="/range" element={<RangeApp />} />
         <Route path="/poker" element={<PokerLobby />} />
+        <Route path="/poker/api-docs" element={<PokerApiDocs />} />
         <Route path="/poker/:tableId" element={<PokerTable />} />
       </Routes>
     </BrowserRouter>

@@ -104,6 +104,7 @@ export function PokerLobby() {
           <h1>ポーカー対戦</h1>
           <p className="subtitle">卓を作成するか、既存の卓に参加してください</p>
         </div>
+        <Link to="/poker/api-docs" className="btn">API仕様を見る</Link>
       </header>
 
       <main className="app-main">
