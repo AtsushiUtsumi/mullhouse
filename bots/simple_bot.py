@@ -48,7 +48,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base-url", default="http://localhost/api/poker")
     parser.add_argument("--site-url", default="http://localhost")
-    parser.add_argument("--name", default="SimpleBot")
+    parser.add_argument("--name", default="吉田のボット")
     parser.add_argument("--small-blind", type=int, default=25)
     parser.add_argument("--big-blind", type=int, default=50)
     parser.add_argument("--buy-in", type=int, default=1000)
@@ -58,7 +58,7 @@ def main() -> None:
     table = request(
         "POST",
         f"{args.base_url}/tables",
-        {"small_blind": args.small_blind, "big_blind": args.big_blind, "max_players": 2},
+        {"name": "日本語の卓名", "small_blind": args.small_blind, "big_blind": args.big_blind, "max_players": 2},
     )
     table_id = table["table_id"]
     print(f"卓を作成しました: {table_id}")
