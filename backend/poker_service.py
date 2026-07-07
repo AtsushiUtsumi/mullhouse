@@ -298,9 +298,13 @@ class PokerService:
         summaries = []
         for meta in self._tables.values():
             try:
-                summaries.append(meta.summary())
+                summary = meta.summary()
             except Exception:
                 logger.exception("failed to summarize table %s; omitting from listing", meta.table_id)
+                continue
+            if summary["status"] == "CLOSED":
+                continue
+            summaries.append(summary)
         return summaries
 
     def get_meta(self, table_id: str) -> TableMeta:
