@@ -12,7 +12,21 @@ import {
   saveCredentials,
   submitAction,
 } from '../pokerApi'
-import type { PokerActionType, PokerCredentials, PokerStatePayload } from '../pokerTypes'
+import type {
+  PokerActionType,
+  PokerCredentials,
+  PokerGameState,
+  PokerPlayerState,
+  PokerStatePayload,
+} from '../pokerTypes'
+
+const RAISE_MULTIPLIERS = [2, 2.5, 3, 4]
+const BET_POT_FRACTIONS = [0.2, 0.33, 0.5, 0.75, 1.25]
+
+function clampBetAmount(state: PokerGameState, me: PokerPlayerState, amount: number): number {
+  const max = me.current_bet + me.chips
+  return Math.min(Math.max(Math.round(amount), state.big_blind), max)
+}
 
 const PHASE_LABELS: Record<string, string> = {
   WAITING: '待機中',
@@ -281,6 +295,30 @@ export function PokerTable() {
                   {waitingFor.valid_actions.map((action) =>
                     action === 'bet' || action === 'raise' ? (
                       <span key={action} className="poker-bet-control">
+                        {action === 'raise' &&
+                          RAISE_MULTIPLIERS.map((mult) => (
+                            <button
+                              key={mult}
+                              type="button"
+                              className="btn"
+                              onClick={() =>
+                                me && setBetAmount(clampBetAmount(state, me, state.current_bet * mult))
+                              }
+                            >
+                              x{mult}
+                            </button>
+                          ))}
+                        {action === 'bet' &&
+                          BET_POT_FRACTIONS.map((fraction) => (
+                            <button
+                              key={fraction}
+                              type="button"
+                              className="btn"
+                              onClick={() => me && setBetAmount(clampBetAmount(state, me, state.pot * fraction))}
+                            >
+                              {Math.round(fraction * 100)}%
+                            </button>
+                          ))}
                         <input
                           type="number"
                           value={betAmount}
