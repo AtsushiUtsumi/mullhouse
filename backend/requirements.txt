@@ -2,4 +2,4 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.6.0
 psycopg[binary]>=3.1.0
-poker_domain @ git+https://github.com/AtsushiUtsumi/poker-domain.git@a199c7681d9b926529031b8da0e40f5b4ed131f2
+poker_domain @ git+https://github.com/AtsushiUtsumi/poker-domain.git@e8639e28231b60c2cb3f7f6b9dae80271736043b

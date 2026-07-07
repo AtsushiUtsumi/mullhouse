@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass, field
@@ -34,6 +35,8 @@ from poker_domain import (
     Suit,
     TableStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 AUTO_START_DELAY = 2.0
 AUTO_NEXT_HAND_DELAY = 3.0
@@ -290,7 +293,15 @@ class PokerService:
         return meta
 
     def list_tables(self) -> list[dict[str, Any]]:
-        return [m.summary() for m in self._tables.values()]
+        """A single corrupted table (e.g. a poker_domain internal error) must not
+        take the whole lobby listing down for every other table."""
+        summaries = []
+        for meta in self._tables.values():
+            try:
+                summaries.append(meta.summary())
+            except Exception:
+                logger.exception("failed to summarize table %s; omitting from listing", meta.table_id)
+        return summaries
 
     def get_meta(self, table_id: str) -> TableMeta:
         meta = self._tables.get(table_id)
