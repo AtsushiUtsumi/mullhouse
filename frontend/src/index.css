@@ -170,6 +170,11 @@ body {
   color: var(--text-muted);
 }
 
+.poker-checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+}
+
 input, select {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -753,6 +758,15 @@ input:focus, select:focus {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
+}
+
+.poker-side-pots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: var(--mono);
 }
 
 .poker-seats {

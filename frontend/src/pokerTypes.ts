@@ -10,6 +10,13 @@ export interface PokerPlayerState {
   hole_cards: string[] | null
 }
 
+export interface PokerPot {
+  amount: number
+  eligible_player_ids: string[]
+}
+
+export type TableStatus = 'RECRUITING' | 'PLAYING' | 'CLOSED' | 'OTHER'
+
 export interface PokerGameState {
   table_id: string
   phase: 'WAITING' | 'PRE_FLOP' | 'FLOP' | 'TURN' | 'RIVER' | 'SHOWDOWN'
@@ -21,6 +28,14 @@ export interface PokerGameState {
   dealer_id: string
   small_blind: number
   big_blind: number
+  ante: number
+  blind_level: number
+  ante_level: number
+  status: TableStatus
+  side_pots: PokerPot[]
+  rake_percent: number
+  rake_cap: number | null
+  rake_min_pot: number | null
 }
 
 export interface WaitingFor {
@@ -39,6 +54,8 @@ export interface PokerStatePayload {
   state: PokerGameState
   waiting_for: WaitingFor | null
   rebuy_available: boolean
+  max_players: number
+  require_full_table: boolean
   events: PokerEvent[]
 }
 
@@ -47,9 +64,14 @@ export interface TableSummary {
   name: string
   small_blind: number
   big_blind: number
+  ante: number
+  blind_level: number
+  rake_percent: number
   max_players: number
   seated: number
   phase: string
+  status: TableStatus
+  require_full_table: boolean
   created_at: string
 }
 

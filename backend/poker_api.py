@@ -18,6 +18,13 @@ class CreateTableRequest(BaseModel):
     small_blind: int = 25
     big_blind: int = 50
     max_players: int = 6
+    rake_percent: float = 0.0
+    rake_cap: int | None = None
+    rake_min_pot: int | None = None
+    blind_schedule: list[tuple[int, int]] | None = None
+    ante_schedule: list[int] | None = None
+    level_up_interval_minutes: int | None = None
+    require_full_table: bool = False
 
 
 class JoinRequest(BaseModel):
@@ -53,7 +60,19 @@ def _raise_for_domain_error(e: PokerError) -> None:
 
 @router.post("/tables")
 def create_table(req: CreateTableRequest) -> dict[str, Any]:
-    meta = poker_service.create_table(req.name, req.small_blind, req.big_blind, req.max_players)
+    meta = poker_service.create_table(
+        req.name,
+        req.small_blind,
+        req.big_blind,
+        req.max_players,
+        rake_percent=req.rake_percent,
+        rake_cap=req.rake_cap,
+        rake_min_pot=req.rake_min_pot,
+        blind_schedule=req.blind_schedule,
+        ante_schedule=req.ante_schedule,
+        level_up_interval_minutes=req.level_up_interval_minutes,
+        require_full_table=req.require_full_table,
+    )
     return meta.summary()
 
 

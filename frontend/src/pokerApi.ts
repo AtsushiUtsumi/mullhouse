@@ -25,6 +25,13 @@ export async function createTable(params: {
   small_blind?: number
   big_blind?: number
   max_players?: number
+  rake_percent?: number
+  rake_cap?: number
+  rake_min_pot?: number
+  blind_schedule?: [number, number][]
+  ante_schedule?: number[]
+  level_up_interval_minutes?: number
+  require_full_table?: boolean
 }): Promise<TableSummary> {
   return fetchJson('/tables', { method: 'POST', body: JSON.stringify(params) })
 }

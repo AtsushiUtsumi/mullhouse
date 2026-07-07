@@ -28,9 +28,11 @@ from poker_domain import (
     NotEnoughPlayersError,
     PlayerState,
     PokerTable,
+    Pot,
     Rank,
     Raise,
     Suit,
+    TableStatus,
 )
 
 AUTO_START_DELAY = 2.0
@@ -76,6 +78,13 @@ def serialize_player(ps: PlayerState, names: dict[str, str]) -> dict[str, Any]:
     }
 
 
+def serialize_pot(pot: Pot) -> dict[str, Any]:
+    return {
+        "amount": pot.amount.amount,
+        "eligible_player_ids": list(pot.eligible_player_ids),
+    }
+
+
 def serialize_state(state: GameState, names: dict[str, str]) -> dict[str, Any]:
     return {
         "table_id": state.table_id,
@@ -88,6 +97,14 @@ def serialize_state(state: GameState, names: dict[str, str]) -> dict[str, Any]:
         "dealer_id": state.dealer_id,
         "small_blind": state.small_blind.amount,
         "big_blind": state.big_blind.amount,
+        "ante": state.ante.amount,
+        "blind_level": state.blind_level,
+        "ante_level": state.ante_level,
+        "status": state.status.name,
+        "side_pots": [serialize_pot(p) for p in state.side_pots],
+        "rake_percent": state.rake_percent,
+        "rake_cap": state.rake_cap,
+        "rake_min_pot": state.rake_min_pot,
     }
 
 
@@ -114,6 +131,8 @@ def compute_rebuy_available(state: GameState, max_players: int, viewer_player_id
     add_player/remove_player phase gate, so the frontend can hide/disable the
     rebuy button instead of always offering it and failing.
     """
+    if state.status == TableStatus.CLOSED:
+        return False
     if state.phase not in (GamePhase.WAITING, GamePhase.SHOWDOWN):
         return False
     seated = any(p.player_id == viewer_player_id for p in state.players)
@@ -129,6 +148,8 @@ def serialize_event(ev: GameEvent) -> dict[str, Any]:
             payload[key] = [serialize_card(c) for c in value]
         elif key == "hands":
             payload[key] = {pid: serialize_hand(h) for pid, h in value.items()}
+        elif key == "pots":
+            payload[key] = [serialize_pot(p) for p in value]
         else:
             payload[key] = value
     return {"type": ev.event_type.name.lower(), "payload": payload}
@@ -162,23 +183,35 @@ class TableMeta:
     timeout_seconds: int
     created_at: datetime
     table: PokerTable
+    rake_percent: float = 0.0
+    rake_cap: int | None = None
+    rake_min_pot: int | None = None
+    blind_schedule: list[tuple[int, int]] | None = None
+    ante_schedule: list[int] | None = None
+    require_full_table: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     tokens: dict[str, str] = field(default_factory=dict)
     names: dict[str, str] = field(default_factory=dict)
     connections: dict[str, WebSocket] = field(default_factory=dict)
     auto_start_task: asyncio.Task | None = None
     auto_next_hand_task: asyncio.Task | None = None
+    level_up_task: asyncio.Task | None = None
 
     def summary(self) -> dict[str, Any]:
         state = self.table.get_state()
         return {
             "table_id": self.table_id,
             "name": self.name,
-            "small_blind": self.small_blind,
-            "big_blind": self.big_blind,
+            "small_blind": state.small_blind.amount,
+            "big_blind": state.big_blind.amount,
+            "ante": state.ante.amount,
+            "blind_level": state.blind_level,
+            "rake_percent": self.rake_percent,
             "max_players": self.max_players,
             "seated": len(state.players),
             "phase": state.phase.name,
+            "status": state.status.name,
+            "require_full_table": self.require_full_table,
             "created_at": self.created_at.isoformat(),
         }
 
@@ -195,6 +228,8 @@ def build_payload(meta: TableMeta, player_id: str, events: list[GameEvent] | Non
         "state": serialize_state(state, meta.names),
         "waiting_for": compute_waiting_for(state, meta.timeout_seconds),
         "rebuy_available": compute_rebuy_available(state, meta.max_players, player_id),
+        "max_players": meta.max_players,
+        "require_full_table": meta.require_full_table,
         "events": [serialize_event(e) for e in (events or [])],
     }
 
@@ -203,7 +238,20 @@ class PokerService:
     def __init__(self) -> None:
         self._tables: dict[str, TableMeta] = {}
 
-    def create_table(self, name: str | None, small_blind: int, big_blind: int, max_players: int) -> TableMeta:
+    def create_table(
+        self,
+        name: str | None,
+        small_blind: int,
+        big_blind: int,
+        max_players: int,
+        rake_percent: float = 0.0,
+        rake_cap: int | None = None,
+        rake_min_pot: int | None = None,
+        blind_schedule: list[tuple[int, int]] | None = None,
+        ante_schedule: list[int] | None = None,
+        level_up_interval_minutes: int | None = None,
+        require_full_table: bool = False,
+    ) -> TableMeta:
         table_id = uuid.uuid4().hex[:8]
         meta = TableMeta(
             table_id=table_id,
@@ -213,15 +261,32 @@ class PokerService:
             max_players=max_players,
             timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
             created_at=datetime.now(timezone.utc),
+            rake_percent=rake_percent,
+            rake_cap=rake_cap,
+            rake_min_pot=rake_min_pot,
+            blind_schedule=blind_schedule,
+            ante_schedule=ante_schedule,
+            require_full_table=require_full_table,
             table=PokerTable(
                 table_id=table_id,
                 max_players=max_players,
                 small_blind=small_blind,
                 big_blind=big_blind,
                 timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+                blind_schedule=blind_schedule,
+                ante_schedule=ante_schedule,
+                rake_percent=rake_percent,
+                rake_cap=rake_cap,
+                rake_min_pot=rake_min_pot,
             ),
         )
         self._tables[table_id] = meta
+        has_blind_levels = blind_schedule is not None and len(blind_schedule) > 1
+        has_ante_levels = ante_schedule is not None and len(ante_schedule) > 1
+        if level_up_interval_minutes and (has_blind_levels or has_ante_levels):
+            meta.level_up_task = asyncio.create_task(
+                self._run_level_up_loop(meta, level_up_interval_minutes * 60)
+            )
         return meta
 
     def list_tables(self) -> list[dict[str, Any]]:
@@ -255,7 +320,7 @@ class PokerService:
             meta.names.pop(player_id, None)
             meta.connections.pop(player_id, None)
             seated = len(meta.table.get_state().players)
-            if seated < 2 and meta.auto_start_task is not None:
+            if seated < self._start_threshold(meta) and meta.auto_start_task is not None:
                 meta.auto_start_task.cancel()
                 meta.auto_start_task = None
         await self._broadcast(meta, [event])
@@ -302,9 +367,16 @@ class PokerService:
     def unregister_ws(self, meta: TableMeta, player_id: str) -> None:
         meta.connections.pop(player_id, None)
 
+    def _start_threshold(self, meta: TableMeta) -> int:
+        return meta.max_players if meta.require_full_table else 2
+
     def _maybe_schedule_auto_start(self, meta: TableMeta) -> None:
         state = meta.table.get_state()
-        if state.phase == GamePhase.WAITING and len(state.players) >= 2 and meta.auto_start_task is None:
+        if (
+            state.phase == GamePhase.WAITING
+            and len(state.players) >= self._start_threshold(meta)
+            and meta.auto_start_task is None
+        ):
             meta.auto_start_task = asyncio.create_task(self._run_auto_start(meta))
 
     async def _run_auto_start(self, meta: TableMeta) -> None:
@@ -313,7 +385,7 @@ class PokerService:
             await asyncio.sleep(AUTO_START_DELAY)
             async with meta.lock:
                 state = meta.table.get_state()
-                if state.phase == GamePhase.WAITING and len(state.players) >= 2:
+                if state.phase == GamePhase.WAITING and len(state.players) >= self._start_threshold(meta):
                     try:
                         result = meta.table.start_game()
                         events = list(result.events)
@@ -343,6 +415,24 @@ class PokerService:
         finally:
             meta.auto_next_hand_task = None
         await self._broadcast(meta, events)
+
+    async def _run_level_up_loop(self, meta: TableMeta, interval_seconds: float) -> None:
+        try:
+            while True:
+                await asyncio.sleep(interval_seconds)
+                async with meta.lock:
+                    if meta.table.get_table_status() == TableStatus.CLOSED:
+                        break
+                    events = []
+                    if meta.blind_schedule is not None and len(meta.blind_schedule) > 1:
+                        events.append(meta.table.level_up_blind())
+                    if meta.ante_schedule is not None and len(meta.ante_schedule) > 1:
+                        events.append(meta.table.level_up_ante())
+                await self._broadcast(meta, events)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            meta.level_up_task = None
 
     async def _broadcast(self, meta: TableMeta, events: list[GameEvent] | None = None) -> None:
         for player_id, ws in list(meta.connections.items()):

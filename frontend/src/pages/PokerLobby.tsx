@@ -12,6 +12,38 @@ const PHASE_LABELS: Record<string, string> = {
   SHOWDOWN: 'ショーダウン',
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  RECRUITING: '募集中',
+  PLAYING: '進行中',
+  CLOSED: '終了',
+  OTHER: '-',
+}
+
+function parseBlindSchedule(text: string): [number, number][] | undefined {
+  const trimmed = text.trim()
+  if (!trimmed) return undefined
+  const levels = trimmed
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [sb, bb] = part.split('/').map((n) => Number(n.trim()))
+      return [sb, bb] as [number, number]
+    })
+    .filter(([sb, bb]) => Number.isFinite(sb) && Number.isFinite(bb))
+  return levels.length > 0 ? levels : undefined
+}
+
+function parseAnteSchedule(text: string): number[] | undefined {
+  const trimmed = text.trim()
+  if (!trimmed) return undefined
+  const levels = trimmed
+    .split(',')
+    .map((n) => Number(n.trim()))
+    .filter((n) => Number.isFinite(n))
+  return levels.length > 0 ? levels : undefined
+}
+
 export function PokerLobby() {
   const navigate = useNavigate()
   const [tables, setTables] = useState<TableSummary[]>([])
@@ -19,6 +51,13 @@ export function PokerLobby() {
   const [smallBlind, setSmallBlind] = useState(25)
   const [bigBlind, setBigBlind] = useState(50)
   const [maxPlayers, setMaxPlayers] = useState(6)
+  const [rakePercent, setRakePercent] = useState(0)
+  const [rakeCap, setRakeCap] = useState<number | ''>('')
+  const [rakeMinPot, setRakeMinPot] = useState<number | ''>('')
+  const [blindSchedule, setBlindSchedule] = useState('')
+  const [anteSchedule, setAnteSchedule] = useState('')
+  const [levelUpInterval, setLevelUpInterval] = useState<number | ''>('')
+  const [requireFullTable, setRequireFullTable] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -41,6 +80,13 @@ export function PokerLobby() {
         small_blind: smallBlind,
         big_blind: bigBlind,
         max_players: maxPlayers,
+        rake_percent: rakePercent > 0 ? rakePercent / 100 : undefined,
+        rake_cap: rakeCap === '' ? undefined : rakeCap,
+        rake_min_pot: rakeMinPot === '' ? undefined : rakeMinPot,
+        blind_schedule: parseBlindSchedule(blindSchedule),
+        ante_schedule: parseAnteSchedule(anteSchedule),
+        level_up_interval_minutes: levelUpInterval === '' ? undefined : levelUpInterval,
+        require_full_table: requireFullTable,
       })
       navigate(`/poker/${table.table_id}`)
     } catch (e) {
@@ -94,6 +140,68 @@ export function PokerLobby() {
                 onChange={(e) => setMaxPlayers(Number(e.target.value))}
               />
             </label>
+            <label>
+              レーキ率(%)
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={rakePercent}
+                onChange={(e) => setRakePercent(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              レーキ上限(任意)
+              <input
+                type="number"
+                min={0}
+                value={rakeCap}
+                onChange={(e) => setRakeCap(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </label>
+            <label>
+              レーキ対象最低ポット(任意)
+              <input
+                type="number"
+                min={0}
+                value={rakeMinPot}
+                onChange={(e) => setRakeMinPot(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </label>
+            <label>
+              ブラインドスケジュール(任意)
+              <input
+                value={blindSchedule}
+                onChange={(e) => setBlindSchedule(e.target.value)}
+                placeholder="例: 25/50,50/100,100/200"
+              />
+            </label>
+            <label>
+              アンティスケジュール(任意)
+              <input
+                value={anteSchedule}
+                onChange={(e) => setAnteSchedule(e.target.value)}
+                placeholder="例: 0,25,50"
+              />
+            </label>
+            <label>
+              レベルアップ間隔(分・任意)
+              <input
+                type="number"
+                min={1}
+                value={levelUpInterval}
+                onChange={(e) => setLevelUpInterval(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </label>
+            <label className="poker-checkbox-label">
+              <input
+                type="checkbox"
+                checked={requireFullTable}
+                onChange={(e) => setRequireFullTable(e.target.checked)}
+              />
+              満員になるまでゲームを開始しない
+            </label>
           </div>
           <button type="button" className="btn primary" onClick={handleCreate} disabled={creating}>
             {creating ? '作成中...' : '卓を作成'}
@@ -112,7 +220,11 @@ export function PokerLobby() {
                   <Link to={`/poker/${t.table_id}`} className="load-btn">
                     <span className="load-pos">{t.name}</span>
                     <span className="load-line">
-                      {t.seated}/{t.max_players}人 · {PHASE_LABELS[t.phase] ?? t.phase} · SB {t.small_blind}/BB {t.big_blind}
+                      {t.seated}/{t.max_players}人 · {STATUS_LABELS[t.status] ?? t.status} ({PHASE_LABELS[t.phase] ?? t.phase}) ·{' '}
+                      SB {t.small_blind}/BB {t.big_blind}
+                      {t.ante > 0 && ` · アンティ ${t.ante}`}
+                      {t.rake_percent > 0 && ` · レーキ ${(t.rake_percent * 100).toFixed(1)}%`}
+                      {t.require_full_table && ' · 満員待ち'}
                     </span>
                   </Link>
                 </li>

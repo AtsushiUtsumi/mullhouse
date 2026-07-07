@@ -15,12 +15,20 @@ import {
 import type { PokerActionType, PokerCredentials, PokerStatePayload } from '../pokerTypes'
 
 const PHASE_LABELS: Record<string, string> = {
-  WAITING: '待機中(2人以上の参加で自動開始)',
+  WAITING: '待機中',
   PRE_FLOP: 'プレフロップ',
   FLOP: 'フロップ',
   TURN: 'ターン',
   RIVER: 'リバー',
   SHOWDOWN: 'ショーダウン',
+}
+
+function waitingHint(payload: PokerStatePayload): string {
+  const seated = payload.state.players.length
+  if (payload.require_full_table) {
+    return `満員(${seated}/${payload.max_players}人)になると自動開始`
+  }
+  return `2人以上の参加で自動開始(${seated}/${payload.max_players}人)`
 }
 
 const ACTION_LABELS: Record<PokerActionType, string> = {
@@ -182,6 +190,9 @@ export function PokerTable() {
   const me = state.players.find((p) => p.player_id === creds.player_id)
   const handInProgress = state.phase !== 'WAITING' && state.phase !== 'SHOWDOWN'
   const isBusted = (me !== undefined && me.chips === 0 && state.phase === 'SHOWDOWN') || me === undefined
+  const isTableClosed = state.status === 'CLOSED'
+  const isWinner = isTableClosed && !isBusted
+  const isGameOver = isBusted || isWinner
 
   return (
     <div className="app">
@@ -189,9 +200,15 @@ export function PokerTable() {
         <div className="header-content">
           <Link to="/poker" className="home-link">← ロビー</Link>
           <h1>ポーカー対戦</h1>
-          <p className="subtitle">{PHASE_LABELS[state.phase] ?? state.phase}</p>
+          <p className="subtitle">
+            {PHASE_LABELS[state.phase] ?? state.phase}
+            {state.phase === 'WAITING' && ` (${waitingHint(payload)})`} · Lv.{state.blind_level + 1} SB
+            {state.small_blind}/BB{state.big_blind}
+            {state.ante > 0 && ` · アンティ${state.ante}`}
+            {state.rake_percent > 0 && ` · レーキ${(state.rake_percent * 100).toFixed(1)}%`}
+          </p>
         </div>
-        {!isBusted && (
+        {!isGameOver && (
           <button type="button" className="btn" onClick={handleLeave} disabled={handInProgress}>
             卓を離れる
           </button>
@@ -204,6 +221,16 @@ export function PokerTable() {
             <span className="rec-label">ポット</span>
             <span className="rec-value">{state.pot}</span>
           </div>
+
+          {state.side_pots.length > 1 && (
+            <div className="poker-side-pots">
+              {state.side_pots.map((sidePot, i) => (
+                <span key={i}>
+                  {i === 0 ? 'メインポット' : `サイドポット${i}`}: {sidePot.amount}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="board-cards">
             <span className="board-cards-label">コミュニティカード</span>
@@ -243,7 +270,7 @@ export function PokerTable() {
             ))}
           </div>
 
-          {me && !isBusted && (
+          {me && !isGameOver && (
             <div className="poker-action-bar">
               {waitingFor && isMyTurn ? (
                 <>
@@ -280,32 +307,48 @@ export function PokerTable() {
             </div>
           )}
 
-          {!isBusted && error && <p className="message">{error}</p>}
+          {!isGameOver && error && <p className="message">{error}</p>}
         </section>
       </main>
 
-      {isBusted && (
+      {isGameOver && (
         <div className="poker-busted-overlay">
           <div className="panel poker-busted-dialog">
-            <h2>チップがなくなりました</h2>
-            <p className="hint">
-              {rebuyAvailable
-                ? 'リバイして続けるか、ホームに戻るか選択してください。'
-                : '現在はリバイできません。ハンドの区切りをお待ちいただくか、ホームに戻ってください。'}
-            </p>
-            <div className="poker-action-bar">
-              <button
-                type="button"
-                className="btn accent"
-                onClick={handleRebuy}
-                disabled={!rebuyAvailable || rebuying}
-              >
-                {rebuying ? 'リバイ中...' : 'リバイ'}
-              </button>
-              <button type="button" className="btn primary" onClick={handleGoHome}>
-                ホームに戻る
-              </button>
-            </div>
+            {isWinner ? (
+              <>
+                <h2>あなたの勝利です</h2>
+                <p className="hint">対戦相手がいなくなったため卓は終了しました。ホームに戻ってください。</p>
+                <div className="poker-action-bar">
+                  <button type="button" className="btn primary" onClick={handleGoHome}>
+                    ホームに戻る
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2>{isTableClosed ? '対局が終了しました' : 'チップがなくなりました'}</h2>
+                <p className="hint">
+                  {isTableClosed
+                    ? '対戦相手がいなくなったため卓は終了しました。ホームに戻ってください。'
+                    : rebuyAvailable
+                      ? 'リバイして続けるか、ホームに戻るか選択してください。'
+                      : '現在はリバイできません。ハンドの区切りをお待ちいただくか、ホームに戻ってください。'}
+                </p>
+                <div className="poker-action-bar">
+                  <button
+                    type="button"
+                    className="btn accent"
+                    onClick={handleRebuy}
+                    disabled={!rebuyAvailable || rebuying}
+                  >
+                    {rebuying ? 'リバイ中...' : 'リバイ'}
+                  </button>
+                  <button type="button" className="btn primary" onClick={handleGoHome}>
+                    ホームに戻る
+                  </button>
+                </div>
+              </>
+            )}
             {error && <p className="message">{error}</p>}
           </div>
         </div>
