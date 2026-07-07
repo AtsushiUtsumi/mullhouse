@@ -283,6 +283,13 @@ export function PokerTable() {
                           min={state.big_blind}
                           onChange={(e) => setBetAmount(Number(e.target.value))}
                         />
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => me && setBetAmount(me.current_bet + me.chips)}
+                        >
+                          オールイン
+                        </button>
                         <button type="button" className="btn accent" onClick={() => handleAction(action)}>
                           {ACTION_LABELS[action]}
                         </button>
