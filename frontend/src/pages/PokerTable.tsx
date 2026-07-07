@@ -1,0 +1,256 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { PlayingCard } from '../components/PlayingCard'
+import {
+  clearCredentials,
+  connectTableSocket,
+  fetchTableState,
+  joinTable,
+  leaveTable,
+  loadCredentials,
+  saveCredentials,
+  submitAction,
+} from '../pokerApi'
+import type { PokerActionType, PokerCredentials, PokerStatePayload } from '../pokerTypes'
+
+const PHASE_LABELS: Record<string, string> = {
+  WAITING: '待機中(2人以上の参加で自動開始)',
+  PRE_FLOP: 'プレフロップ',
+  FLOP: 'フロップ',
+  TURN: 'ターン',
+  RIVER: 'リバー',
+  SHOWDOWN: 'ショーダウン',
+}
+
+const ACTION_LABELS: Record<PokerActionType, string> = {
+  fold: 'フォールド',
+  check: 'チェック',
+  call: 'コール',
+  bet: 'ベット',
+  raise: 'レイズ',
+}
+
+export function PokerTable() {
+  const { tableId } = useParams<{ tableId: string }>()
+  const navigate = useNavigate()
+  const [creds, setCreds] = useState<PokerCredentials | null>(null)
+  const [payload, setPayload] = useState<PokerStatePayload | null>(null)
+  const [displayName, setDisplayName] = useState('')
+  const [error, setError] = useState('')
+  const [betAmount, setBetAmount] = useState<number>(0)
+  const wsRef = useRef<WebSocket | null>(null)
+
+  const connect = useCallback(
+    (nextCreds: PokerCredentials) => {
+      if (!tableId) return
+      wsRef.current?.close()
+      const ws = connectTableSocket(tableId, nextCreds, setPayload)
+      wsRef.current = ws
+    },
+    [tableId],
+  )
+
+  useEffect(() => {
+    if (!tableId) return
+    const stored = loadCredentials(tableId)
+    if (stored) {
+      fetchTableState(tableId, stored)
+        .then((state) => {
+          setCreds(stored)
+          setPayload(state)
+          connect(stored)
+        })
+        .catch(() => {
+          clearCredentials(tableId)
+        })
+    }
+    return () => {
+      wsRef.current?.close()
+    }
+  }, [tableId, connect])
+
+  useEffect(() => {
+    if (payload?.state.big_blind) {
+      setBetAmount((prev) => prev || payload.state.big_blind)
+    }
+  }, [payload?.state.big_blind])
+
+  const handleJoin = async () => {
+    if (!tableId) return
+    setError('')
+    try {
+      const res = await joinTable(tableId, displayName || 'プレイヤー')
+      const nextCreds = { player_id: res.player_id, token: res.token }
+      saveCredentials(tableId, nextCreds)
+      setCreds(nextCreds)
+      setPayload(res)
+      connect(nextCreds)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const handleAction = async (action: PokerActionType) => {
+    if (!tableId || !creds) return
+    setError('')
+    try {
+      const amount = action === 'bet' || action === 'raise' ? betAmount : undefined
+      const res = await submitAction(tableId, creds, action, amount)
+      setPayload(res)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const handleLeave = async () => {
+    if (!tableId || !creds) return
+    try {
+      await leaveTable(tableId, creds)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return
+    }
+    clearCredentials(tableId)
+    wsRef.current?.close()
+    navigate('/poker')
+  }
+
+  if (!tableId) return null
+
+  if (!creds || !payload) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <div className="header-content">
+            <Link to="/poker" className="home-link">← ロビー</Link>
+            <h1>卓に参加</h1>
+          </div>
+        </header>
+        <main className="app-main">
+          <section className="panel">
+            <div className="form-grid">
+              <label>
+                表示名
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="プレイヤー"
+                />
+              </label>
+            </div>
+            <button type="button" className="btn primary" onClick={handleJoin}>
+              参加する
+            </button>
+            {error && <p className="message">{error}</p>}
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  const { state, waiting_for: waitingFor } = payload
+  const isMyTurn = waitingFor?.player_id === creds.player_id
+  const me = state.players.find((p) => p.player_id === creds.player_id)
+  const handInProgress = state.phase !== 'WAITING' && state.phase !== 'SHOWDOWN'
+
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div className="header-content">
+          <Link to="/poker" className="home-link">← ロビー</Link>
+          <h1>ポーカー対戦</h1>
+          <p className="subtitle">{PHASE_LABELS[state.phase] ?? state.phase}</p>
+        </div>
+        <button type="button" className="btn" onClick={handleLeave} disabled={handInProgress}>
+          卓を離れる
+        </button>
+      </header>
+
+      <main className="app-main">
+        <section className="panel poker-table-panel">
+          <div className="poker-pot-row">
+            <span className="rec-label">ポット</span>
+            <span className="rec-value">{state.pot}</span>
+          </div>
+
+          <div className="board-cards">
+            <span className="board-cards-label">コミュニティカード</span>
+            <div className="board-cards-row">
+              {state.community_cards.map((card, i) => (
+                <PlayingCard key={`${card}-${i}`} card={card} />
+              ))}
+              {state.community_cards.length === 0 && <span className="hint">-</span>}
+            </div>
+          </div>
+
+          <div className="poker-seats">
+            {state.players.map((p) => (
+              <div
+                key={p.player_id}
+                className={`poker-seat ${p.player_id === state.current_player_id ? 'active' : ''} ${p.folded ? 'folded' : ''} ${p.player_id === creds.player_id ? 'me' : ''}`}
+              >
+                <div className="poker-seat-name">
+                  {p.display_name}
+                  {p.player_id === state.dealer_id && <span className="poker-dealer-badge">D</span>}
+                </div>
+                <div className="poker-seat-chips">チップ: {p.chips}</div>
+                <div className="poker-seat-bet">ベット: {p.current_bet}</div>
+                {p.folded && <div className="poker-seat-status">フォールド</div>}
+                {p.is_all_in && <div className="poker-seat-status">オールイン</div>}
+                <div className="board-cards-row">
+                  {p.hole_cards ? (
+                    p.hole_cards.map((card, i) => <PlayingCard key={`${card}-${i}`} card={card} />)
+                  ) : (
+                    <>
+                      <div className="playing-card back" />
+                      <div className="playing-card back" />
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {me && (
+            <div className="poker-action-bar">
+              {waitingFor && isMyTurn ? (
+                <>
+                  {waitingFor.valid_actions.map((action) =>
+                    action === 'bet' || action === 'raise' ? (
+                      <span key={action} className="poker-bet-control">
+                        <input
+                          type="number"
+                          value={betAmount}
+                          min={state.big_blind}
+                          onChange={(e) => setBetAmount(Number(e.target.value))}
+                        />
+                        <button type="button" className="btn accent" onClick={() => handleAction(action)}>
+                          {ACTION_LABELS[action]}
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        key={action}
+                        type="button"
+                        className={`btn ${action === 'fold' ? '' : 'primary'}`}
+                        onClick={() => handleAction(action)}
+                      >
+                        {ACTION_LABELS[action]}
+                      </button>
+                    ),
+                  )}
+                </>
+              ) : (
+                <p className="hint">
+                  {handInProgress ? '相手の手番です...' : '次のハンドの開始を待っています...'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {error && <p className="message">{error}</p>}
+        </section>
+      </main>
+    </div>
+  )
+}

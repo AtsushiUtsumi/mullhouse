@@ -15,11 +15,10 @@ export function Home() {
             <p>レンジをマトリクスで編集し、ソルバーでEVを評価します。</p>
           </Link>
 
-          <div className="app-card disabled" aria-disabled="true">
-            <span className="coming-soon-badge">Coming Soon</span>
+          <Link to="/poker" className="app-card">
             <h2>ポーカー対戦</h2>
-            <p>ポーカーをプレイできるアプリを準備中です。</p>
-          </div>
+            <p>卓を作成・参加してポーカーをリアルタイムでプレイします。</p>
+          </Link>
         </div>
       </main>
     </div>
