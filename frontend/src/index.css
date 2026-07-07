@@ -933,13 +933,21 @@ input:focus, select:focus {
   align-items: center;
 }
 
-.poker-bet-control {
+.poker-action-bar-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.poker-action-row {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
   align-items: center;
 }
 
-.poker-bet-control input {
+.poker-action-row input {
   width: 100px;
 }
 

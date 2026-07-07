@@ -317,63 +317,78 @@ export function PokerTable() {
           {me && !isGameOver && (
             <div className="poker-action-bar">
               {waitingFor && isMyTurn ? (
-                <>
-                  {waitingFor.valid_actions.map((action) =>
-                    action === 'bet' || action === 'raise' ? (
-                      <span key={action} className="poker-bet-control">
-                        {action === 'raise' &&
-                          RAISE_MULTIPLIERS.map((mult) => (
+                (() => {
+                  const betOrRaise = waitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
+                  const otherActions = waitingFor.valid_actions.filter((a) => a !== 'bet' && a !== 'raise')
+                  return (
+                    <div className="poker-action-bar-turn">
+                      {betOrRaise && (
+                        <>
+                          <div className="poker-action-row">
+                            <input
+                              type="number"
+                              value={betAmount}
+                              min={state.big_blind}
+                              onChange={(e) => setBetAmount(Number(e.target.value))}
+                            />
                             <button
-                              key={mult}
                               type="button"
                               className="btn"
-                              onClick={() =>
-                                me && setBetAmount(clampBetAmount(state, me, state.current_bet * mult))
-                              }
+                              onClick={() => me && setBetAmount(me.current_bet + me.chips)}
                             >
-                              x{mult}
+                              オールイン
                             </button>
-                          ))}
-                        {action === 'bet' &&
-                          BET_POT_FRACTIONS.map((fraction) => (
-                            <button
-                              key={fraction}
-                              type="button"
-                              className="btn"
-                              onClick={() => me && setBetAmount(clampBetAmount(state, me, state.pot * fraction))}
-                            >
-                              {Math.round(fraction * 100)}%
-                            </button>
-                          ))}
-                        <input
-                          type="number"
-                          value={betAmount}
-                          min={state.big_blind}
-                          onChange={(e) => setBetAmount(Number(e.target.value))}
-                        />
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => me && setBetAmount(me.current_bet + me.chips)}
-                        >
-                          オールイン
-                        </button>
-                        <button type="button" className="btn accent" onClick={() => handleAction(action)}>
-                          {ACTION_LABELS[action]}
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        key={action}
-                        type="button"
-                        className={`btn ${action === 'fold' ? '' : 'primary'}`}
-                        onClick={() => handleAction(action)}
-                      >
-                        {ACTION_LABELS[action]}
-                      </button>
-                    ),
-                  )}
-                </>
+                          </div>
+                          <div className="poker-action-row">
+                            {betOrRaise === 'raise' &&
+                              RAISE_MULTIPLIERS.map((mult) => (
+                                <button
+                                  key={mult}
+                                  type="button"
+                                  className="btn"
+                                  onClick={() =>
+                                    me && setBetAmount(clampBetAmount(state, me, state.current_bet * mult))
+                                  }
+                                >
+                                  x{mult}
+                                </button>
+                              ))}
+                            {betOrRaise === 'bet' &&
+                              BET_POT_FRACTIONS.map((fraction) => (
+                                <button
+                                  key={fraction}
+                                  type="button"
+                                  className="btn"
+                                  onClick={() =>
+                                    me && setBetAmount(clampBetAmount(state, me, state.pot * fraction))
+                                  }
+                                >
+                                  {Math.round(fraction * 100)}%
+                                </button>
+                              ))}
+                          </div>
+                        </>
+                      )}
+                      <div className="poker-action-row">
+                        {otherActions.map((action) => (
+                          <button
+                            key={action}
+                            type="button"
+                            className={`btn ${action === 'fold' ? '' : 'primary'}`}
+                            onClick={() => handleAction(action)}
+                          >
+                            {ACTION_LABELS[action]}
+                          </button>
+                        ))}
+                        {betOrRaise && (
+                          <button type="button" className="btn accent" onClick={() => handleAction(betOrRaise)}>
+                            {ACTION_LABELS[betOrRaise]}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()
               ) : (
                 <p className="hint">
                   {handInProgress ? '相手の手番です...' : '次のハンドの開始を待っています...'}
