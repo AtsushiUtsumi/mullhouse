@@ -43,7 +43,7 @@ function orderSeatsFromViewer(players: PokerPlayerState[], viewerId: string): Po
 /** Position for seat `i` of `total`, arranged clockwise around an oval starting
  * at the bottom (the viewer's own seat), as a percentage of the table's box. */
 function seatPosition(i: number, total: number): { left: number; top: number } {
-  const angle = ((180 - (i * 360) / total) * Math.PI) / 180
+  const angle = ((180 + (i * 360) / total) * Math.PI) / 180
   const rx = 44
   const ry = 34
   return {
