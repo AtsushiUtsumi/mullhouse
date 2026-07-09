@@ -58,7 +58,7 @@ def main() -> None:
     table = request(
         "POST",
         f"{args.base_url}/tables",
-        {"name": "日本語の卓名", "small_blind": args.small_blind, "big_blind": args.big_blind, "max_players": 2},
+        {"name": "日本語の卓名", "small_blind": args.small_blind, "big_blind": args.big_blind, "max_players": 2, "require_full_table": True},
     )
     table_id = table["table_id"]
     print(f"卓を作成しました: {table_id}")
