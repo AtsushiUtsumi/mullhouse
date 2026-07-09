@@ -101,8 +101,7 @@ def serialize_state(state: GameState, names: dict[str, str]) -> dict[str, Any]:
         "small_blind": state.small_blind.amount,
         "big_blind": state.big_blind.amount,
         "ante": state.ante.amount,
-        "blind_level": state.blind_level,
-        "ante_level": state.ante_level,
+        "level": state.level,
         "status": state.status.name,
         "side_pots": [serialize_pot(p) for p in state.side_pots],
         "rake_percent": state.rake_percent,
@@ -184,17 +183,14 @@ def build_action(action: str, amount: int | None) -> Action:
 class TableMeta:
     table_id: str
     name: str
-    small_blind: int
-    big_blind: int
     max_players: int
     timeout_seconds: int
     created_at: datetime
     table: PokerTable
+    level_schedule: list[tuple[int, int, int]]
     rake_percent: float = 0.0
     rake_cap: int | None = None
     rake_min_pot: int | None = None
-    blind_schedule: list[tuple[int, int]] | None = None
-    ante_schedule: list[int] | None = None
     require_full_table: bool = False
     initial_chips: int | None = None
     allow_rebuy: bool = True
@@ -214,7 +210,7 @@ class TableMeta:
             "small_blind": state.small_blind.amount,
             "big_blind": state.big_blind.amount,
             "ante": state.ante.amount,
-            "blind_level": state.blind_level,
+            "level": state.level,
             "rake_percent": self.rake_percent,
             "max_players": self.max_players,
             "seated": len(state.players),
@@ -253,33 +249,28 @@ class PokerService:
     def create_table(
         self,
         name: str | None,
-        small_blind: int,
-        big_blind: int,
+        level_schedule: list[tuple[int, int, int]],
         max_players: int,
         rake_percent: float = 0.0,
         rake_cap: int | None = None,
         rake_min_pot: int | None = None,
-        blind_schedule: list[tuple[int, int]] | None = None,
-        ante_schedule: list[int] | None = None,
         level_up_interval_minutes: int | None = None,
         require_full_table: bool = False,
         initial_chips: int | None = None,
         allow_rebuy: bool = True,
     ) -> TableMeta:
         table_id = uuid.uuid4().hex[:8]
+        small_blind, big_blind, ante = level_schedule[0]
         meta = TableMeta(
             table_id=table_id,
             name=name or f"Table {table_id}",
-            small_blind=small_blind,
-            big_blind=big_blind,
             max_players=max_players,
             timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
             created_at=datetime.now(timezone.utc),
             rake_percent=rake_percent,
             rake_cap=rake_cap,
             rake_min_pot=rake_min_pot,
-            blind_schedule=blind_schedule,
-            ante_schedule=ante_schedule,
+            level_schedule=level_schedule,
             require_full_table=require_full_table,
             initial_chips=initial_chips,
             allow_rebuy=allow_rebuy,
@@ -288,9 +279,9 @@ class PokerService:
                 max_players=max_players,
                 small_blind=small_blind,
                 big_blind=big_blind,
+                ante=ante,
                 timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
-                blind_schedule=blind_schedule,
-                ante_schedule=ante_schedule,
+                level_schedule=level_schedule,
                 rake_percent=rake_percent,
                 rake_cap=rake_cap,
                 rake_min_pot=rake_min_pot,
@@ -299,9 +290,7 @@ class PokerService:
             ),
         )
         self._tables[table_id] = meta
-        has_blind_levels = blind_schedule is not None and len(blind_schedule) > 1
-        has_ante_levels = ante_schedule is not None and len(ante_schedule) > 1
-        if level_up_interval_minutes and (has_blind_levels or has_ante_levels):
+        if level_up_interval_minutes and len(level_schedule) > 1:
             meta.level_up_task = asyncio.create_task(
                 self._run_level_up_loop(meta, level_up_interval_minutes * 60)
             )
@@ -454,10 +443,8 @@ class PokerService:
                     if meta.table.get_table_status() == TableStatus.CLOSED:
                         break
                     events = []
-                    if meta.blind_schedule is not None and len(meta.blind_schedule) > 1:
-                        events.append(meta.table.level_up_blind())
-                    if meta.ante_schedule is not None and len(meta.ante_schedule) > 1:
-                        events.append(meta.table.level_up_ante())
+                    if len(meta.level_schedule) > 1:
+                        events.append(meta.table.level_up())
                 await self._broadcast(meta, events)
         except asyncio.CancelledError:
             pass

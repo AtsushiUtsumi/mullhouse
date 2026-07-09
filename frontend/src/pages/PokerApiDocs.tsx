@@ -37,14 +37,11 @@ export function PokerApiDocs() {
             <p>卓を作成します。作成者は自動では着席しません。</p>
             <pre>{`{
   "name": "任意の卓名",          // 省略可
-  "small_blind": 25,
-  "big_blind": 50,
   "max_players": 6,
   "rake_percent": 0.0,          // 省略可 (0.05 = 5%)
   "rake_cap": null,             // 省略可 レーキの上限額
   "rake_min_pot": null,         // 省略可 この額未満のポットはレーキなし
-  "blind_schedule": null,       // 省略可 [[sb, bb], ...] 複数レベル指定時
-  "ante_schedule": null,        // 省略可 [ante, ...]
+  "level_schedule": [[25, 50, 0]], // [[sb, bb, ante], ...] 1要素なら固定、複数なら上昇スケジュール
   "level_up_interval_minutes": null, // 省略可 ブラインド/アンティを自動昇格させる間隔(分)
   "require_full_table": false   // true で満員になるまで自動開始しない
 }`}</pre>
@@ -71,7 +68,7 @@ export function PokerApiDocs() {
   "small_blind": 25,
   "big_blind": 50,
   "ante": 0,
-  "blind_level": 0,
+  "level": 0,
   "rake_percent": 0.0,
   "max_players": 6,
   "seated": 2,
@@ -196,8 +193,7 @@ export function PokerApiDocs() {
     "small_blind": 25,
     "big_blind": 50,
     "ante": 0,
-    "blind_level": 0,
-    "ante_level": 0,
+    "level": 0,
     "status": "PLAYING",             // RECRUITING/PLAYING/CLOSED/OTHER
     "side_pots": [
       { "amount": 50, "eligible_player_ids": ["73952fba", "5041bd70"] }
@@ -246,7 +242,7 @@ export function PokerApiDocs() {
         <section className="panel about-panel">
           <h2>ボットの実装例(疑似コード)</h2>
           <pre>{`# 1. 卓を作成
-POST /api/poker/tables { "small_blind": 25, "big_blind": 50, "max_players": 6 }
+POST /api/poker/tables { "level_schedule": [[25, 50, 0]], "max_players": 6 }
 -> table_id を得る
 
 # 2. 着席

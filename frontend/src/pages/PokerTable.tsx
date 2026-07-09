@@ -274,7 +274,7 @@ export function PokerTable() {
           <h1>ポーカー対戦</h1>
           <p className="subtitle">
             {PHASE_LABELS[state.phase] ?? state.phase}
-            {state.phase === 'WAITING' && ` (${waitingHint(payload)})`} · Lv.{state.blind_level + 1} SB
+            {state.phase === 'WAITING' && ` (${waitingHint(payload)})`} · Lv.{state.level + 1} SB
             {state.small_blind}/BB{state.big_blind}
             {state.ante > 0 && ` · アンティ${state.ante}`}
             {state.rake_percent > 0 && ` · レーキ${(state.rake_percent * 100).toFixed(1)}%`}

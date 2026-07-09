@@ -29,8 +29,7 @@ export interface PokerGameState {
   small_blind: number
   big_blind: number
   ante: number
-  blind_level: number
-  ante_level: number
+  level: number
   status: TableStatus
   side_pots: PokerPot[]
   rake_percent: number
@@ -66,7 +65,7 @@ export interface TableSummary {
   small_blind: number
   big_blind: number
   ante: number
-  blind_level: number
+  level: number
   rake_percent: number
   max_players: number
   seated: number

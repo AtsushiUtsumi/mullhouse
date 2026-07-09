@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from poker_domain import (
     InvalidActionError,
@@ -21,18 +21,22 @@ router = APIRouter()
 
 class CreateTableRequest(BaseModel):
     name: str | None = None
-    small_blind: int = 25
-    big_blind: int = 50
     max_players: int = 6
     rake_percent: float = 0.0
     rake_cap: int | None = None
     rake_min_pot: int | None = None
-    blind_schedule: list[tuple[int, int]] | None = None
-    ante_schedule: list[int] | None = None
+    level_schedule: list[tuple[int, int, int]] = [(25, 50, 0)]
     level_up_interval_minutes: int | None = None
     require_full_table: bool = False
     initial_chips: int | None = None
     allow_rebuy: bool = True
+
+    @field_validator("level_schedule")
+    @classmethod
+    def _require_at_least_one_level(cls, v: list[tuple[int, int, int]]) -> list[tuple[int, int, int]]:
+        if not v:
+            raise ValueError("level_schedule must contain at least one level")
+        return v
 
 
 class JoinRequest(BaseModel):
@@ -67,17 +71,14 @@ def _raise_for_domain_error(e: PokerError) -> None:
 
 
 @router.post("/tables")
-def create_table(req: CreateTableRequest) -> dict[str, Any]:
+async def create_table(req: CreateTableRequest) -> dict[str, Any]:
     meta = poker_service.create_table(
         req.name,
-        req.small_blind,
-        req.big_blind,
+        req.level_schedule,
         req.max_players,
         rake_percent=req.rake_percent,
         rake_cap=req.rake_cap,
         rake_min_pot=req.rake_min_pot,
-        blind_schedule=req.blind_schedule,
-        ante_schedule=req.ante_schedule,
         level_up_interval_minutes=req.level_up_interval_minutes,
         require_full_table=req.require_full_table,
         initial_chips=req.initial_chips,

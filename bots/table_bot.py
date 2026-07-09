@@ -6,11 +6,12 @@ polling and acting for every CPU seat with a simple check/call strategy
 until the table closes.
 
 Usage:
-    python table_bot.py [--base-url http://localhost/api/poker]
-                        [--site-url http://localhost]
-                        [--table-name テスト卓] [--small-blind 25] [--big-blind 50]
+    python table_bot.py [--host 18.182.161.71 | --host localhost]
+                        [--base-url http://18.182.161.71/api/poker]  # host を上書き
+                        [--site-url http://18.182.161.71]            # host を上書き
+                        [--table-name テスト卓]
                         [--max-players 6] [--initial-chips 15000]
-                        [--ante-schedule 70,140,280,410] [--num-bots 5]
+                        [--level-schedule 25/50/70,25/50/140,25/50/280,25/50/410] [--num-bots 5]
                         [--allow-rebuy | --no-allow-rebuy]
 
 No third-party dependencies; uses only the Python standard library.
@@ -56,37 +57,43 @@ class BotPlayer:
         self.last_phase: str | None = None
 
 
-def parse_int_list(text: str) -> list[int]:
-    return [int(part.strip()) for part in text.split(",") if part.strip()]
+def parse_level_schedule(text: str) -> list[tuple[int, int, int]]:
+    levels = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        sb, bb, ante = (int(n.strip()) for n in part.split("/"))
+        levels.append((sb, bb, ante))
+    return levels
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--base-url", default="http://localhost/api/poker")
-    parser.add_argument("--site-url", default="http://localhost")
+    parser.add_argument("--host", default="18.182.161.71", help="対象ホスト (例: localhost)")
+    parser.add_argument("--base-url", default=None, help="省略時は http://{host}/api/poker")
+    parser.add_argument("--site-url", default=None, help="省略時は http://{host}")
     parser.add_argument("--table-name", default="テスト卓")
-    parser.add_argument("--small-blind", type=int, default=25)
-    parser.add_argument("--big-blind", type=int, default=50)
     parser.add_argument("--max-players", type=int, default=6)
     parser.add_argument("--initial-chips", type=int, default=500)
-    parser.add_argument("--ante-schedule", default="70,140,280,410")
+    parser.add_argument("--level-schedule", default="25/50/70,25/50/140,25/50/280,25/50/410")
     parser.add_argument("--num-bots", type=int, default=5)
     parser.add_argument("--bot-name-prefix", default="CPU")
     parser.add_argument("--poll-interval", type=float, default=1.0)
     parser.add_argument("--allow-rebuy", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
-    ante_schedule = parse_int_list(args.ante_schedule)
+    base_url = args.base_url or f"http://{args.host}/api/poker"
+    site_url = args.site_url or f"http://{args.host}"
+    level_schedule = parse_level_schedule(args.level_schedule)
 
     table = request(
         "POST",
-        f"{args.base_url}/tables",
+        f"{base_url}/tables",
         {
             "name": args.table_name,
-            "small_blind": args.small_blind,
-            "big_blind": args.big_blind,
             "max_players": args.max_players,
-            "ante_schedule": ante_schedule,
+            "level_schedule": level_schedule,
             "require_full_table": True,
             "initial_chips": args.initial_chips,
             "allow_rebuy": args.allow_rebuy,
@@ -94,14 +101,14 @@ def main() -> None:
     )
     table_id = table["table_id"]
     print(f"卓を作成しました: '{args.table_name}' (table_id={table_id})")
-    print(f"  SB/BB={args.small_blind}/{args.big_blind}  初期チップ={args.initial_chips}  アンティ={ante_schedule}  リバイ={'許可' if args.allow_rebuy else '禁止'}")
+    print(f"  初期チップ={args.initial_chips}  レベルスケジュール={level_schedule}  リバイ={'許可' if args.allow_rebuy else '禁止'}")
 
     bots: list[BotPlayer] = []
     for i in range(1, args.num_bots + 1):
         name = f"{args.bot_name_prefix}{i}"
         join = request(
             "POST",
-            f"{args.base_url}/tables/{table_id}/join",
+            f"{base_url}/tables/{table_id}/join",
             {"display_name": name, "buy_in": args.initial_chips},
         )
         bots.append(BotPlayer(name, join["player_id"], join["token"]))
@@ -110,7 +117,7 @@ def main() -> None:
     remaining = args.max_players - len(bots)
     print(f"{len(bots)}/{args.max_players}人のCPUが着席しました。残り{remaining}人の参加を待っています。")
     print("ブラウザで下記URLを開いて参加してください:")
-    print(f"  {args.site_url}/poker/{table_id}")
+    print(f"  {site_url}/poker/{table_id}")
     print("対戦を待機しています... (Ctrl+Cで終了)")
 
     while True:
@@ -118,7 +125,7 @@ def main() -> None:
         for bot in bots:
             payload = request(
                 "GET",
-                f"{args.base_url}/tables/{table_id}/state?player_id={bot.player_id}&token={bot.token}",
+                f"{base_url}/tables/{table_id}/state?player_id={bot.player_id}&token={bot.token}",
             )
             state = payload["state"]
             if state["phase"] != bot.last_phase:
@@ -135,7 +142,7 @@ def main() -> None:
                 print(f"[{bot.name}] チップがなくなったのでリバイします")
                 request(
                     "POST",
-                    f"{args.base_url}/tables/{table_id}/rebuy",
+                    f"{base_url}/tables/{table_id}/rebuy",
                     {"player_id": bot.player_id, "token": bot.token, "buy_in": args.initial_chips},
                 )
 
@@ -145,7 +152,7 @@ def main() -> None:
                 print(f"[{bot.name}] action={action}")
                 request(
                     "POST",
-                    f"{args.base_url}/tables/{table_id}/action",
+                    f"{base_url}/tables/{table_id}/action",
                     {"player_id": bot.player_id, "token": bot.token, "action": action, "amount": amount},
                 )
 

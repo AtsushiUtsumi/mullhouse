@@ -19,43 +19,32 @@ const STATUS_LABELS: Record<string, string> = {
   OTHER: '-',
 }
 
-function parseBlindSchedule(text: string): [number, number][] | undefined {
-  const trimmed = text.trim()
-  if (!trimmed) return undefined
-  const levels = trimmed
+function parseLevelSchedule(text: string): [number, number, number][] {
+  const levels = text
+    .trim()
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => {
-      const [sb, bb] = part.split('/').map((n) => Number(n.trim()))
-      return [sb, bb] as [number, number]
+      const [sb, bb, ante] = part.split('/').map((n) => Number(n.trim()))
+      return [sb, bb, ante] as [number, number, number]
     })
-    .filter(([sb, bb]) => Number.isFinite(sb) && Number.isFinite(bb))
-  return levels.length > 0 ? levels : undefined
-}
-
-function parseAnteSchedule(text: string): number[] | undefined {
-  const trimmed = text.trim()
-  if (!trimmed) return undefined
-  const levels = trimmed
-    .split(',')
-    .map((n) => Number(n.trim()))
-    .filter((n) => Number.isFinite(n))
-  return levels.length > 0 ? levels : undefined
+    .filter(([sb, bb, ante]) => Number.isFinite(sb) && Number.isFinite(bb) && Number.isFinite(ante))
+  if (levels.length === 0) {
+    throw new Error('レベルスケジュールの形式が正しくありません(例: 25/50/0 または 25/50/0,50/100/25)')
+  }
+  return levels
 }
 
 export function PokerLobby() {
   const navigate = useNavigate()
   const [tables, setTables] = useState<TableSummary[]>([])
   const [name, setName] = useState('')
-  const [smallBlind, setSmallBlind] = useState(25)
-  const [bigBlind, setBigBlind] = useState(50)
   const [maxPlayers, setMaxPlayers] = useState(6)
   const [rakePercent, setRakePercent] = useState(0)
   const [rakeCap, setRakeCap] = useState<number | ''>('')
   const [rakeMinPot, setRakeMinPot] = useState<number | ''>('')
-  const [blindSchedule, setBlindSchedule] = useState('')
-  const [anteSchedule, setAnteSchedule] = useState('')
+  const [levelSchedule, setLevelSchedule] = useState('25/50/0')
   const [levelUpInterval, setLevelUpInterval] = useState<number | ''>('')
   const [requireFullTable, setRequireFullTable] = useState(false)
   const [initialChips, setInitialChips] = useState<number | ''>('')
@@ -79,14 +68,11 @@ export function PokerLobby() {
     try {
       const table = await createTable({
         name: name || undefined,
-        small_blind: smallBlind,
-        big_blind: bigBlind,
         max_players: maxPlayers,
         rake_percent: rakePercent > 0 ? rakePercent / 100 : undefined,
         rake_cap: rakeCap === '' ? undefined : rakeCap,
         rake_min_pot: rakeMinPot === '' ? undefined : rakeMinPot,
-        blind_schedule: parseBlindSchedule(blindSchedule),
-        ante_schedule: parseAnteSchedule(anteSchedule),
+        level_schedule: parseLevelSchedule(levelSchedule),
         level_up_interval_minutes: levelUpInterval === '' ? undefined : levelUpInterval,
         require_full_table: requireFullTable,
         initial_chips: initialChips === '' ? undefined : initialChips,
@@ -120,19 +106,11 @@ export function PokerLobby() {
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="任意" />
             </label>
             <label>
-              スモールブラインド
+              SB/BB/アンティ
               <input
-                type="number"
-                value={smallBlind}
-                onChange={(e) => setSmallBlind(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              ビッグブラインド
-              <input
-                type="number"
-                value={bigBlind}
-                onChange={(e) => setBigBlind(Number(e.target.value))}
+                value={levelSchedule}
+                onChange={(e) => setLevelSchedule(e.target.value)}
+                placeholder="例: 25/50/0 (固定) または 25/50/0,50/100/25 (上昇スケジュール)"
               />
             </label>
             <label>
@@ -182,22 +160,6 @@ export function PokerLobby() {
                 min={0}
                 value={rakeMinPot}
                 onChange={(e) => setRakeMinPot(e.target.value === '' ? '' : Number(e.target.value))}
-              />
-            </label>
-            <label>
-              ブラインドスケジュール(任意)
-              <input
-                value={blindSchedule}
-                onChange={(e) => setBlindSchedule(e.target.value)}
-                placeholder="例: 25/50,50/100,100/200"
-              />
-            </label>
-            <label>
-              アンティスケジュール(任意)
-              <input
-                value={anteSchedule}
-                onChange={(e) => setAnteSchedule(e.target.value)}
-                placeholder="例: 0,25,50"
               />
             </label>
             <label>
