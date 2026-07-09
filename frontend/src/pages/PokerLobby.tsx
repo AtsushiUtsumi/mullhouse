@@ -58,6 +58,8 @@ export function PokerLobby() {
   const [anteSchedule, setAnteSchedule] = useState('')
   const [levelUpInterval, setLevelUpInterval] = useState<number | ''>('')
   const [requireFullTable, setRequireFullTable] = useState(false)
+  const [initialChips, setInitialChips] = useState<number | ''>('')
+  const [allowRebuy, setAllowRebuy] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -87,6 +89,8 @@ export function PokerLobby() {
         ante_schedule: parseAnteSchedule(anteSchedule),
         level_up_interval_minutes: levelUpInterval === '' ? undefined : levelUpInterval,
         require_full_table: requireFullTable,
+        initial_chips: initialChips === '' ? undefined : initialChips,
+        allow_rebuy: allowRebuy,
       })
       navigate(`/poker/${table.table_id}`)
     } catch (e) {
@@ -139,6 +143,16 @@ export function PokerLobby() {
                 max={6}
                 value={maxPlayers}
                 onChange={(e) => setMaxPlayers(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              初期チップ額(任意)
+              <input
+                type="number"
+                min={0}
+                value={initialChips}
+                onChange={(e) => setInitialChips(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="未設定なら自由なバイイン額"
               />
             </label>
             <label>
@@ -203,6 +217,14 @@ export function PokerLobby() {
               />
               満員になるまでゲームを開始しない
             </label>
+            <label className="poker-checkbox-label">
+              <input
+                type="checkbox"
+                checked={allowRebuy}
+                onChange={(e) => setAllowRebuy(e.target.checked)}
+              />
+              リバイを許可する
+            </label>
           </div>
           <button type="button" className="btn primary" onClick={handleCreate} disabled={creating}>
             {creating ? '作成中...' : '卓を作成'}
@@ -225,7 +247,9 @@ export function PokerLobby() {
                       SB {t.small_blind}/BB {t.big_blind}
                       {t.ante > 0 && ` · アンティ ${t.ante}`}
                       {t.rake_percent > 0 && ` · レーキ ${(t.rake_percent * 100).toFixed(1)}%`}
+                      {t.initial_chips != null && ` · 初期チップ ${t.initial_chips}`}
                       {t.require_full_table && ' · 満員待ち'}
+                      {!t.allow_rebuy && ' · リバイ禁止'}
                     </span>
                   </Link>
                 </li>

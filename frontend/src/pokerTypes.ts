@@ -56,6 +56,7 @@ export interface PokerStatePayload {
   rebuy_available: boolean
   max_players: number
   require_full_table: boolean
+  initial_chips: number | null
   events: PokerEvent[]
 }
 
@@ -72,6 +73,8 @@ export interface TableSummary {
   phase: string
   status: TableStatus
   require_full_table: boolean
+  initial_chips: number | null
+  allow_rebuy: boolean
   created_at: string
 }
 

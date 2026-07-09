@@ -32,6 +32,8 @@ export async function createTable(params: {
   ante_schedule?: number[]
   level_up_interval_minutes?: number
   require_full_table?: boolean
+  initial_chips?: number
+  allow_rebuy?: boolean
 }): Promise<TableSummary> {
   return fetchJson('/tables', { method: 'POST', body: JSON.stringify(params) })
 }

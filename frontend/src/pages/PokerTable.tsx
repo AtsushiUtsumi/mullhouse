@@ -5,6 +5,7 @@ import {
   clearCredentials,
   connectTableSocket,
   fetchTableState,
+  getTable,
   joinTable,
   leaveTable,
   loadCredentials,
@@ -18,7 +19,10 @@ import type {
   PokerGameState,
   PokerPlayerState,
   PokerStatePayload,
+  TableSummary,
 } from '../pokerTypes'
+
+const DEFAULT_BUY_IN = 1000
 
 const RAISE_MULTIPLIERS = [2, 2.5, 3, 4]
 const BET_POT_FRACTIONS = [0.2, 0.33, 0.5, 0.75, 1.25]
@@ -78,7 +82,10 @@ export function PokerTable() {
   const navigate = useNavigate()
   const [creds, setCreds] = useState<PokerCredentials | null>(null)
   const [payload, setPayload] = useState<PokerStatePayload | null>(null)
+  const [tableSummary, setTableSummary] = useState<TableSummary | null>(null)
   const [displayName, setDisplayName] = useState('')
+  const [buyIn, setBuyIn] = useState<number>(DEFAULT_BUY_IN)
+  const [rebuyAmount, setRebuyAmount] = useState<number>(DEFAULT_BUY_IN)
   const [error, setError] = useState('')
   const [betAmount, setBetAmount] = useState<number>(0)
   const [rebuying, setRebuying] = useState(false)
@@ -114,6 +121,20 @@ export function PokerTable() {
   }, [tableId, connect])
 
   useEffect(() => {
+    if (!tableId || creds) return
+    getTable(tableId)
+      .then((summary) => {
+        setTableSummary(summary)
+        if (summary.initial_chips != null) setBuyIn(summary.initial_chips)
+      })
+      .catch(() => {})
+  }, [tableId, creds])
+
+  useEffect(() => {
+    if (payload?.initial_chips != null) setRebuyAmount(payload.initial_chips)
+  }, [payload?.initial_chips])
+
+  useEffect(() => {
     if (!payload) return
     const { phase, big_blind, pot } = payload.state
     if (phase === 'PRE_FLOP') {
@@ -127,7 +148,7 @@ export function PokerTable() {
     if (!tableId) return
     setError('')
     try {
-      const res = await joinTable(tableId, displayName || 'プレイヤー')
+      const res = await joinTable(tableId, displayName || 'プレイヤー', buyIn)
       const nextCreds = { player_id: res.player_id, token: res.token }
       saveCredentials(tableId, nextCreds)
       setCreds(nextCreds)
@@ -168,7 +189,7 @@ export function PokerTable() {
     setRebuying(true)
     setError('')
     try {
-      const res = await rebuyTable(tableId, creds)
+      const res = await rebuyTable(tableId, creds, rebuyAmount)
       setPayload(res)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -211,6 +232,19 @@ export function PokerTable() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="プレイヤー"
                 />
+              </label>
+              <label>
+                バイイン額
+                {tableSummary?.initial_chips != null ? (
+                  <input type="number" value={tableSummary.initial_chips} disabled />
+                ) : (
+                  <input
+                    type="number"
+                    min={1}
+                    value={buyIn}
+                    onChange={(e) => setBuyIn(Number(e.target.value))}
+                  />
+                )}
               </label>
             </div>
             <button type="button" className="btn primary" onClick={handleJoin}>
@@ -428,6 +462,20 @@ export function PokerTable() {
                       ? 'リバイして続けるか、ホームに戻るか選択してください。'
                       : '現在はリバイできません。ハンドの区切りをお待ちいただくか、ホームに戻ってください。'}
                 </p>
+                {rebuyAvailable && (
+                  <div className="poker-action-row">
+                    {payload.initial_chips != null ? (
+                      <input type="number" value={payload.initial_chips} disabled />
+                    ) : (
+                      <input
+                        type="number"
+                        min={1}
+                        value={rebuyAmount}
+                        onChange={(e) => setRebuyAmount(Number(e.target.value))}
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="poker-action-bar">
                   <button
                     type="button"

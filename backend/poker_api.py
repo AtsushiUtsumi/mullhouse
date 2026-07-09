@@ -7,7 +7,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from poker_domain import InvalidActionError, InvalidPlayerError, PokerError
+from poker_domain import (
+    InvalidActionError,
+    InvalidBuyInError,
+    InvalidPlayerError,
+    PokerError,
+    RebuyNotAllowedError,
+)
 from poker_service import AuthError, TableNotFoundError, build_payload, poker_service
 
 router = APIRouter()
@@ -25,6 +31,8 @@ class CreateTableRequest(BaseModel):
     ante_schedule: list[int] | None = None
     level_up_interval_minutes: int | None = None
     require_full_table: bool = False
+    initial_chips: int | None = None
+    allow_rebuy: bool = True
 
 
 class JoinRequest(BaseModel):
@@ -51,9 +59,9 @@ class RebuyRequest(BaseModel):
 
 
 def _raise_for_domain_error(e: PokerError) -> None:
-    if isinstance(e, InvalidPlayerError):
+    if isinstance(e, (InvalidPlayerError, RebuyNotAllowedError)):
         raise HTTPException(status_code=403, detail=str(e)) from e
-    if isinstance(e, InvalidActionError):
+    if isinstance(e, (InvalidActionError, InvalidBuyInError)):
         raise HTTPException(status_code=400, detail=str(e)) from e
     raise HTTPException(status_code=409, detail=str(e)) from e
 
@@ -72,6 +80,8 @@ def create_table(req: CreateTableRequest) -> dict[str, Any]:
         ante_schedule=req.ante_schedule,
         level_up_interval_minutes=req.level_up_interval_minutes,
         require_full_table=req.require_full_table,
+        initial_chips=req.initial_chips,
+        allow_rebuy=req.allow_rebuy,
     )
     return meta.summary()
 

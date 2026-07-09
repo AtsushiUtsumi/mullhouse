@@ -127,13 +127,17 @@ def compute_waiting_for(state: GameState, timeout_seconds: int) -> dict[str, Any
     }
 
 
-def compute_rebuy_available(state: GameState, max_players: int, viewer_player_id: str) -> bool:
+def compute_rebuy_available(
+    state: GameState, max_players: int, viewer_player_id: str, allow_rebuy: bool
+) -> bool:
     """Whether `viewer_player_id` could (re)join with a fresh buy-in right now.
 
     Only meaningful between hands (WAITING/SHOWDOWN), matching poker_domain's own
     add_player/remove_player phase gate, so the frontend can hide/disable the
     rebuy button instead of always offering it and failing.
     """
+    if not allow_rebuy:
+        return False
     if state.status == TableStatus.CLOSED:
         return False
     if state.phase not in (GamePhase.WAITING, GamePhase.SHOWDOWN):
@@ -192,6 +196,8 @@ class TableMeta:
     blind_schedule: list[tuple[int, int]] | None = None
     ante_schedule: list[int] | None = None
     require_full_table: bool = False
+    initial_chips: int | None = None
+    allow_rebuy: bool = True
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     tokens: dict[str, str] = field(default_factory=dict)
     names: dict[str, str] = field(default_factory=dict)
@@ -215,6 +221,8 @@ class TableMeta:
             "phase": state.phase.name,
             "status": state.status.name,
             "require_full_table": self.require_full_table,
+            "initial_chips": self.initial_chips,
+            "allow_rebuy": self.allow_rebuy,
             "created_at": self.created_at.isoformat(),
         }
 
@@ -230,9 +238,10 @@ def build_payload(meta: TableMeta, player_id: str, events: list[GameEvent] | Non
         "type": "state",
         "state": serialize_state(state, meta.names),
         "waiting_for": compute_waiting_for(state, meta.timeout_seconds),
-        "rebuy_available": compute_rebuy_available(state, meta.max_players, player_id),
+        "rebuy_available": compute_rebuy_available(state, meta.max_players, player_id, meta.allow_rebuy),
         "max_players": meta.max_players,
         "require_full_table": meta.require_full_table,
+        "initial_chips": meta.initial_chips,
         "events": [serialize_event(e) for e in (events or [])],
     }
 
@@ -254,6 +263,8 @@ class PokerService:
         ante_schedule: list[int] | None = None,
         level_up_interval_minutes: int | None = None,
         require_full_table: bool = False,
+        initial_chips: int | None = None,
+        allow_rebuy: bool = True,
     ) -> TableMeta:
         table_id = uuid.uuid4().hex[:8]
         meta = TableMeta(
@@ -270,6 +281,8 @@ class PokerService:
             blind_schedule=blind_schedule,
             ante_schedule=ante_schedule,
             require_full_table=require_full_table,
+            initial_chips=initial_chips,
+            allow_rebuy=allow_rebuy,
             table=PokerTable(
                 table_id=table_id,
                 max_players=max_players,
@@ -281,6 +294,8 @@ class PokerService:
                 rake_percent=rake_percent,
                 rake_cap=rake_cap,
                 rake_min_pot=rake_min_pot,
+                fixed_buy_in=initial_chips,
+                allow_rebuy=allow_rebuy,
             ),
         )
         self._tables[table_id] = meta
