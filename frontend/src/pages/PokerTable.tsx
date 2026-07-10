@@ -13,6 +13,7 @@ import {
   saveCredentials,
   submitAction,
 } from '../pokerApi'
+import { detectLastAction, playActionSound } from '../pokerSounds'
 import type {
   PokerActionType,
   PokerCredentials,
@@ -90,6 +91,7 @@ export function PokerTable() {
   const [betAmount, setBetAmount] = useState<number>(0)
   const [rebuying, setRebuying] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
+  const prevStateRef = useRef<PokerGameState | null>(null)
 
   const connect = useCallback(
     (nextCreds: PokerCredentials) => {
@@ -143,6 +145,16 @@ export function PokerTable() {
       setBetAmount(Math.max(big_blind, Math.round(pot * 0.1)))
     }
   }, [payload?.state.phase])
+
+  useEffect(() => {
+    if (!payload) return
+    const prevState = prevStateRef.current
+    if (prevState) {
+      const action = detectLastAction(prevState, payload.state)
+      if (action) playActionSound(action)
+    }
+    prevStateRef.current = payload.state
+  }, [payload])
 
   const handleJoin = async () => {
     if (!tableId) return
