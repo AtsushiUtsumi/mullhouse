@@ -107,6 +107,15 @@ def serialize_state(state: GameState, names: dict[str, str]) -> dict[str, Any]:
         "rake_percent": state.rake_percent,
         "rake_cap": state.rake_cap,
         "rake_min_pot": state.rake_min_pot,
+        "action_log": [
+            {
+                "player_id": e.player_id,
+                "phase": e.phase.name,
+                "action": e.action,
+                "amount": e.amount,
+            }
+            for e in state.action_log
+        ],
     }
 
 
