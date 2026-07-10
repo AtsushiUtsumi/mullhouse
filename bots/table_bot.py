@@ -81,8 +81,27 @@ def clamp_bet_amount(state: dict, me: dict, amount: float) -> int | None:
     return int(min(max(round(amount), min_amount), max_amount))
 
 
+def last_action_in_phase(action_log: list[dict], phase: str, player_id: str) -> str | None:
+    """指定フェーズで指定プレイヤーが最後に取ったアクション種別(なければNone)。
+    同一フェーズ内でアクションが再オープンされ複数回行動している場合は最後の行動を見る。"""
+    result = None
+    for entry in action_log:
+        if entry["phase"] == phase and entry["player_id"] == player_id:
+            result = entry["action"]
+    return result
+
+
+def phase_opening_bettor(action_log: list[dict], phase: str) -> str | None:
+    """指定フェーズで最初にベットした(=そのストリートを開いた)プレイヤーのID。
+    ストリートごとにベットは高々1回しか起きないので一意に決まる。"""
+    for entry in action_log:
+        if entry["phase"] == phase and entry["action"] == "bet":
+            return entry["player_id"]
+    return None
+
+
 def choose_action(
-    waiting_for: dict, me: dict, state: dict, hand_actions: dict[str, str]
+    waiting_for: dict, me: dict, state: dict, action_log: list[dict]
 ) -> tuple[str, int | None]:
     actions = waiting_for["valid_actions"]
     hole_cards = me.get("hole_cards") or []
@@ -123,12 +142,16 @@ def choose_action(
             if amount is not None:
                 return raise_action, amount
 
-    # フロップで相手のベットにコールした後、ターンで自分の番までチェックが回ってきた
-    # (相手がチェックしてきた)とき、手役に関係なく必ずベットを狙う(フロート)
+    # フロップでベットしてきた相手にコールし、その同じ相手がターンでチェックしてきた
+    # (=フロップのベッターとターンのチェッカーが同一人物と確認できた)とき、手役に
+    # 関係なく必ずベットを狙う(フロート)。マルチウェイでは相手の特定まで行う。
+    flop_bettor = phase_opening_bettor(action_log, "FLOP")
     if (
         state["phase"] == "TURN"
         and state["current_bet"] == 0
-        and hand_actions.get("FLOP") == "call"
+        and last_action_in_phase(action_log, "FLOP", me["player_id"]) == "call"
+        and flop_bettor is not None
+        and last_action_in_phase(action_log, "TURN", flop_bettor) == "check"
         and "bet" in actions
     ):
         amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
@@ -140,8 +163,8 @@ def choose_action(
     if (
         state["phase"] == "RIVER"
         and state["current_bet"] == 0
-        and hand_actions.get("FLOP") == "bet"
-        and hand_actions.get("TURN") == "check"
+        and last_action_in_phase(action_log, "FLOP", me["player_id"]) == "bet"
+        and last_action_in_phase(action_log, "TURN", me["player_id"]) == "check"
         and "bet" in actions
     ):
         amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
@@ -161,7 +184,6 @@ class BotPlayer:
         self.player_id = player_id
         self.token = token
         self.last_phase: str | None = None
-        self.hand_actions: dict[str, str] = {}
 
 
 def parse_level_schedule(text: str) -> list[tuple[int, int, int]]:
@@ -237,8 +259,6 @@ def main() -> None:
             )
             state = payload["state"]
             if state["phase"] != bot.last_phase:
-                if state["phase"] == "PRE_FLOP":
-                    bot.hand_actions = {}
                 seats = [(p["player_id"][:6], p["chips"]) for p in state["players"]]
                 print(f"[{bot.name}] phase={state['phase']} pot={state['pot']} players={seats}")
                 bot.last_phase = state["phase"]
@@ -259,8 +279,7 @@ def main() -> None:
             waiting_for = payload["waiting_for"]
             if waiting_for is not None and waiting_for["player_id"] == bot.player_id:
                 time.sleep(args.think_seconds)
-                action, amount = choose_action(waiting_for, me, state, bot.hand_actions)
-                bot.hand_actions[state["phase"]] = action
+                action, amount = choose_action(waiting_for, me, state, state["action_log"])
                 print(f"[{bot.name}] action={action}" + (f" amount={amount}" if amount is not None else ""))
                 request(
                     "POST",
