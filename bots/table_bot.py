@@ -50,6 +50,14 @@ def is_odd_rank(card: str) -> bool:
     return _RANK_VALUES[card[0]] % 2 == 1
 
 
+def is_ace_queen_offsuit(hole_cards: list[str]) -> bool:
+    if len(hole_cards) != 2:
+        return False
+    ranks = {c[0] for c in hole_cards}
+    suits = {c[1] for c in hole_cards}
+    return ranks == {"A", "Q"} and len(suits) == 2
+
+
 def has_one_pair(hole_cards: list[str], community_cards: list[str]) -> bool:
     ranks = [c[0] for c in hole_cards] + [c[0] for c in community_cards]
     counts: dict[str, int] = {}
@@ -73,7 +81,9 @@ def clamp_bet_amount(state: dict, me: dict, amount: float) -> int | None:
     return int(min(max(round(amount), min_amount), max_amount))
 
 
-def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | None]:
+def choose_action(
+    waiting_for: dict, me: dict, state: dict, hand_actions: dict[str, str]
+) -> tuple[str, int | None]:
     actions = waiting_for["valid_actions"]
     hole_cards = me.get("hole_cards") or []
 
@@ -84,6 +94,20 @@ def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | 
             amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
             if amount is not None:
                 return raise_action, amount
+
+    # プリフロップでマルチウェイ(自分以外に2人以上がまだ残っている)かつ既にレイズが
+    # 入っている場面でAQoを持っていたら3ベットを狙う
+    active_players = [p for p in state["players"] if not p["folded"]]
+    if (
+        state["phase"] == "PRE_FLOP"
+        and state["current_bet"] > state["big_blind"]
+        and len(active_players) >= 3
+        and is_ace_queen_offsuit(hole_cards)
+        and "raise" in actions
+    ):
+        amount = clamp_bet_amount(state, me, state["current_bet"] * 3)
+        if amount is not None:
+            return "raise", amount
 
     # フロップで自分の番までチェックが回ってきた(まだ誰もベットしていない)とき、
     # ワンペア以上できていればレイズを狙う
@@ -99,6 +123,21 @@ def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | 
             if amount is not None:
                 return raise_action, amount
 
+    # フロップでベットし、ターンでチェックした後、リバーで自分の番までチェックが回ってきた
+    # (まだ誰もベットしていない)とき、ワンペア以上できていればベットを狙う
+    if (
+        state["phase"] == "RIVER"
+        and state["current_bet"] == 0
+        and hand_actions.get("FLOP") == "bet"
+        and hand_actions.get("TURN") == "check"
+        and len(hole_cards) == 2
+        and has_one_pair(hole_cards, state["community_cards"])
+        and "bet" in actions
+    ):
+        amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
+        if amount is not None:
+            return "bet", amount
+
     if "check" in actions:
         return "check", None
     if "call" in actions:
@@ -112,6 +151,7 @@ class BotPlayer:
         self.player_id = player_id
         self.token = token
         self.last_phase: str | None = None
+        self.hand_actions: dict[str, str] = {}
 
 
 def parse_level_schedule(text: str) -> list[tuple[int, int, int]]:
@@ -187,6 +227,8 @@ def main() -> None:
             )
             state = payload["state"]
             if state["phase"] != bot.last_phase:
+                if state["phase"] == "PRE_FLOP":
+                    bot.hand_actions = {}
                 seats = [(p["player_id"][:6], p["chips"]) for p in state["players"]]
                 print(f"[{bot.name}] phase={state['phase']} pot={state['pot']} players={seats}")
                 bot.last_phase = state["phase"]
@@ -207,7 +249,8 @@ def main() -> None:
             waiting_for = payload["waiting_for"]
             if waiting_for is not None and waiting_for["player_id"] == bot.player_id:
                 time.sleep(args.think_seconds)
-                action, amount = choose_action(waiting_for, me, state)
+                action, amount = choose_action(waiting_for, me, state, bot.hand_actions)
+                bot.hand_actions[state["phase"]] = action
                 print(f"[{bot.name}] action={action}" + (f" amount={amount}" if amount is not None else ""))
                 request(
                     "POST",
