@@ -40,8 +40,36 @@ def request(method: str, url: str, body: dict | None = None) -> dict:
         raise RuntimeError(f"{method} {url} -> {e.code}: {detail}") from e
 
 
-def choose_action(waiting_for: dict) -> tuple[str, int | None]:
+_RANK_VALUES = {
+    "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+    "T": 10, "J": 11, "Q": 12, "K": 13, "A": 14,
+}
+
+
+def is_odd_rank(card: str) -> bool:
+    return _RANK_VALUES[card[0]] % 2 == 1
+
+
+def clamp_bet_amount(state: dict, me: dict, amount: float) -> int:
+    max_amount = me["current_bet"] + me["chips"]
+    # Doubling current_bet always covers the true minimum raise (the required increment
+    # can never exceed current_bet itself), so it's a safe floor without needing the
+    # engine's exact min-raise increment.
+    min_amount = max(state["big_blind"], state["current_bet"] * 2)
+    return int(min(max(round(amount), min_amount), max_amount))
+
+
+def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | None]:
     actions = waiting_for["valid_actions"]
+    hole_cards = me.get("hole_cards") or []
+
+    # 自分のホールカード2枚がどちらも奇数ランクなら、ポットの33%レイズ(またはベット)を狙う
+    if len(hole_cards) == 2 and all(is_odd_rank(c) for c in hole_cards):
+        raise_action = "raise" if "raise" in actions else ("bet" if "bet" in actions else None)
+        if raise_action is not None:
+            amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
+            return raise_action, amount
+
     if "check" in actions:
         return "check", None
     if "call" in actions:
@@ -80,6 +108,7 @@ def main() -> None:
     parser.add_argument("--num-bots", type=int, default=5)
     parser.add_argument("--bot-name-prefix", default="CPU")
     parser.add_argument("--poll-interval", type=float, default=1.0)
+    parser.add_argument("--think-seconds", type=float, default=1.0, help="手番になってからアクションを送るまでの思考時間(秒)")
     parser.add_argument("--allow-rebuy", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
@@ -148,8 +177,9 @@ def main() -> None:
 
             waiting_for = payload["waiting_for"]
             if waiting_for is not None and waiting_for["player_id"] == bot.player_id:
-                action, amount = choose_action(waiting_for)
-                print(f"[{bot.name}] action={action}")
+                time.sleep(args.think_seconds)
+                action, amount = choose_action(waiting_for, me, state)
+                print(f"[{bot.name}] action={action}" + (f" amount={amount}" if amount is not None else ""))
                 request(
                     "POST",
                     f"{base_url}/tables/{table_id}/action",
