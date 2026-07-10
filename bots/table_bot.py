@@ -123,15 +123,25 @@ def choose_action(
             if amount is not None:
                 return raise_action, amount
 
-    # フロップでベットし、ターンでチェックした後、リバーで自分の番までチェックが回ってきた
-    # (まだ誰もベットしていない)とき、ワンペア以上できていればベットを狙う
+    # フロップで相手のベットにコールした後、ターンで自分の番までチェックが回ってきた
+    # (相手がチェックしてきた)とき、手役に関係なく必ずベットを狙う(フロート)
+    if (
+        state["phase"] == "TURN"
+        and state["current_bet"] == 0
+        and hand_actions.get("FLOP") == "call"
+        and "bet" in actions
+    ):
+        amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
+        if amount is not None:
+            return "bet", amount
+
+    # フロップでベットし、ターンでチェックした後、次にベットできるタイミング(自分の番まで
+    # チェックが回ってきた場面)では、手役に関係なく必ずベットを狙う
     if (
         state["phase"] == "RIVER"
         and state["current_bet"] == 0
         and hand_actions.get("FLOP") == "bet"
         and hand_actions.get("TURN") == "check"
-        and len(hole_cards) == 2
-        and has_one_pair(hole_cards, state["community_cards"])
         and "bet" in actions
     ):
         amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
