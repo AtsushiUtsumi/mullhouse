@@ -74,6 +74,7 @@ export interface TableSummary {
   require_full_table: boolean
   initial_chips: number | null
   allow_rebuy: boolean
+  timeout_seconds: number
   created_at: string
 }
 

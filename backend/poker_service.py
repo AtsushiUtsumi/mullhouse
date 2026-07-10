@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 AUTO_START_DELAY = 2.0
 AUTO_NEXT_HAND_DELAY = 3.0
-DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_TIMEOUT_SECONDS = 15
 
 
 class TableNotFoundError(Exception):
@@ -201,6 +201,7 @@ class TableMeta:
     auto_start_task: asyncio.Task | None = None
     auto_next_hand_task: asyncio.Task | None = None
     level_up_task: asyncio.Task | None = None
+    action_timeout_task: asyncio.Task | None = None
 
     def summary(self) -> dict[str, Any]:
         state = self.table.get_state()
@@ -219,6 +220,7 @@ class TableMeta:
             "require_full_table": self.require_full_table,
             "initial_chips": self.initial_chips,
             "allow_rebuy": self.allow_rebuy,
+            "timeout_seconds": self.timeout_seconds,
             "created_at": self.created_at.isoformat(),
         }
 
@@ -258,6 +260,7 @@ class PokerService:
         require_full_table: bool = False,
         initial_chips: int | None = None,
         allow_rebuy: bool = True,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
     ) -> TableMeta:
         table_id = uuid.uuid4().hex[:8]
         small_blind, big_blind, ante = level_schedule[0]
@@ -265,7 +268,7 @@ class PokerService:
             table_id=table_id,
             name=name or f"Table {table_id}",
             max_players=max_players,
-            timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+            timeout_seconds=timeout_seconds,
             created_at=datetime.now(timezone.utc),
             rake_percent=rake_percent,
             rake_cap=rake_cap,
@@ -280,7 +283,7 @@ class PokerService:
                 small_blind=small_blind,
                 big_blind=big_blind,
                 ante=ante,
-                timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+                timeout_seconds=timeout_seconds,
                 level_schedule=level_schedule,
                 rake_percent=rake_percent,
                 rake_cap=rake_cap,
@@ -360,6 +363,7 @@ class PokerService:
             events = list(result.events)
             if result.waiting_for is None and meta.table.get_state().phase == GamePhase.SHOWDOWN:
                 self._schedule_auto_next_hand(meta)
+            self._reschedule_action_timeout(meta)
         payload = build_payload(meta, player_id, events)
         await self._broadcast(meta, events)
         return payload
@@ -408,6 +412,7 @@ class PokerService:
                     try:
                         result = meta.table.start_game()
                         events = list(result.events)
+                        self._reschedule_action_timeout(meta)
                     except (NotEnoughPlayersError, GameAlreadyStartedError):
                         pass
         finally:
@@ -429,10 +434,58 @@ class PokerService:
                     try:
                         result = meta.table.start_game()
                         events = list(result.events)
+                        self._reschedule_action_timeout(meta)
                     except (NotEnoughPlayersError, GameAlreadyStartedError):
                         pass
         finally:
             meta.auto_next_hand_task = None
+        await self._broadcast(meta, events)
+
+    def _reschedule_action_timeout(self, meta: TableMeta) -> None:
+        """現在手番のプレイヤー向けにシンキングタイムのタイマーを(再)設定する。
+
+        呼び出し元はすべて meta.lock を保持した状態で呼ぶこと。既存のタイマーは
+        古い手番を指しているので必ずキャンセルしてから、現在の手番に対して張り直す。
+        """
+        if meta.action_timeout_task is not None:
+            meta.action_timeout_task.cancel()
+            meta.action_timeout_task = None
+        state = meta.table.get_state()
+        waiting_for = compute_waiting_for(state, meta.timeout_seconds)
+        if waiting_for is not None:
+            meta.action_timeout_task = asyncio.create_task(
+                self._run_action_timeout(meta, waiting_for["player_id"])
+            )
+
+    async def _run_action_timeout(self, meta: TableMeta, player_id: str) -> None:
+        """シンキングタイムが経過しても手番のプレイヤーがアクションしなかった場合、
+        チェックが可能ならチェック、そうでなければフォールドを強制する。"""
+        task = asyncio.current_task()
+        events: list[GameEvent] = []
+        try:
+            await asyncio.sleep(meta.timeout_seconds)
+            async with meta.lock:
+                state = meta.table.get_state()
+                waiting_for = compute_waiting_for(state, meta.timeout_seconds)
+                if waiting_for is None or waiting_for["player_id"] != player_id:
+                    return
+                action: Action = Check() if "check" in waiting_for["valid_actions"] else Fold()
+                result = meta.table.action(player_id=player_id, action=action)
+                events = list(result.events)
+                if result.waiting_for is None and meta.table.get_state().phase == GamePhase.SHOWDOWN:
+                    self._schedule_auto_next_hand(meta)
+                next_state = meta.table.get_state()
+                next_waiting_for = compute_waiting_for(next_state, meta.timeout_seconds)
+                meta.action_timeout_task = (
+                    asyncio.create_task(self._run_action_timeout(meta, next_waiting_for["player_id"]))
+                    if next_waiting_for is not None
+                    else None
+                )
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if meta.action_timeout_task is task:
+                meta.action_timeout_task = None
         await self._broadcast(meta, events)
 
     async def _run_level_up_loop(self, meta: TableMeta, interval_seconds: float) -> None:

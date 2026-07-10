@@ -31,6 +31,7 @@ export async function createTable(params: {
   require_full_table?: boolean
   initial_chips?: number
   allow_rebuy?: boolean
+  timeout_seconds?: number
 }): Promise<TableSummary> {
   return fetchJson('/tables', { method: 'POST', body: JSON.stringify(params) })
 }

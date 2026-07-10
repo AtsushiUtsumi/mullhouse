@@ -30,6 +30,7 @@ class CreateTableRequest(BaseModel):
     require_full_table: bool = False
     initial_chips: int | None = None
     allow_rebuy: bool = True
+    timeout_seconds: int = 15
 
     @field_validator("level_schedule")
     @classmethod
@@ -83,6 +84,7 @@ async def create_table(req: CreateTableRequest) -> dict[str, Any]:
         require_full_table=req.require_full_table,
         initial_chips=req.initial_chips,
         allow_rebuy=req.allow_rebuy,
+        timeout_seconds=req.timeout_seconds,
     )
     return meta.summary()
 

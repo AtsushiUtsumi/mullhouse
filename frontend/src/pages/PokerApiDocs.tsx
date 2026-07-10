@@ -43,7 +43,10 @@ export function PokerApiDocs() {
   "rake_min_pot": null,         // 省略可 この額未満のポットはレーキなし
   "level_schedule": [[25, 50, 0]], // [[sb, bb, ante], ...] 1要素なら固定、複数なら上昇スケジュール
   "level_up_interval_minutes": null, // 省略可 ブラインド/アンティを自動昇格させる間隔(分)
-  "require_full_table": false   // true で満員になるまで自動開始しない
+  "require_full_table": false,  // true で満員になるまで自動開始しない
+  "initial_chips": null,         // 省略可 指定すると join/rebuy の buy_in を無視してこの額で固定
+  "allow_rebuy": true,           // false でチップ切れ後のリバイを禁止
+  "timeout_seconds": 15          // 省略可 シンキングタイム(秒)。デフォルト15秒
 }`}</pre>
             <p>戻り値は卓のサマリー(下記「卓サマリー」を参照)。</p>
           </div>
@@ -75,6 +78,9 @@ export function PokerApiDocs() {
   "phase": "WAITING",           // GameState.phase と同じ値
   "status": "RECRUITING",       // RECRUITING / PLAYING / CLOSED / OTHER
   "require_full_table": false,
+  "initial_chips": null,
+  "allow_rebuy": true,
+  "timeout_seconds": 15,
   "created_at": "2026-07-07T06:13:06.500261+00:00"
 }`}</pre>
           </div>
@@ -147,6 +153,8 @@ export function PokerApiDocs() {
             <p>
               チップが0になった後、ハンドの区切り(WAITING/SHOWDOWN)かつ卓がクローズしていない場合のみ、
               新しいバイインで復帰できます。状態ペイロードの <code>rebuy_available</code> で可否を確認できます。
+              卓の <code>allow_rebuy</code> が false の場合は常に不可。<code>initial_chips</code> が設定されている
+              卓では <code>buy_in</code> の値は無視され、その固定額でリバイされます。
             </p>
             <pre>{`{ "player_id": "73952fba", "token": "...", "buy_in": 1000 }`}</pre>
           </div>
@@ -205,11 +213,12 @@ export function PokerApiDocs() {
   "waiting_for": {
     "player_id": "73952fba",
     "valid_actions": ["fold", "call", "raise"],
-    "timeout_seconds": 30
+    "timeout_seconds": 15
   },
   "rebuy_available": false,
   "max_players": 6,
   "require_full_table": false,
+  "initial_chips": null,
   "events": [
     { "type": "turn_changed", "payload": { "player_id": "73952fba" } }
   ]
@@ -224,6 +233,12 @@ export function PokerApiDocs() {
           <p>
             <code>phase</code> が <code>WAITING</code>/<code>SHOWDOWN</code> のとき(誰の手番でもない)は{' '}
             <code>null</code> です。
+          </p>
+          <h3>シンキングタイム超過時の自動アクション</h3>
+          <p>
+            手番のプレイヤーが <code>waiting_for.timeout_seconds</code> 以内にアクションを送らなかった場合、
+            サーバーが自動的にアクションを行います(<code>check</code> が可能ならチェック、不可能ならフォールド)。
+            自動アクションの結果も通常のアクションと同様に <code>events</code> とWebSocketのpushで通知されます。
           </p>
         </section>
 

@@ -49,6 +49,7 @@ export function PokerLobby() {
   const [requireFullTable, setRequireFullTable] = useState(false)
   const [initialChips, setInitialChips] = useState<number | ''>('')
   const [allowRebuy, setAllowRebuy] = useState(true)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -77,6 +78,7 @@ export function PokerLobby() {
         require_full_table: requireFullTable,
         initial_chips: initialChips === '' ? undefined : initialChips,
         allow_rebuy: allowRebuy,
+        timeout_seconds: timeoutSeconds,
       })
       navigate(`/poker/${table.table_id}`)
     } catch (e) {
@@ -171,6 +173,15 @@ export function PokerLobby() {
                 onChange={(e) => setLevelUpInterval(e.target.value === '' ? '' : Number(e.target.value))}
               />
             </label>
+            <label>
+              シンキングタイム(秒)
+              <input
+                type="number"
+                min={1}
+                value={timeoutSeconds}
+                onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
+              />
+            </label>
             <label className="poker-checkbox-label">
               <input
                 type="checkbox"
@@ -212,6 +223,7 @@ export function PokerLobby() {
                       {t.initial_chips != null && ` · 初期チップ ${t.initial_chips}`}
                       {t.require_full_table && ' · 満員待ち'}
                       {!t.allow_rebuy && ' · リバイ禁止'}
+                      {` · シンキングタイム ${t.timeout_seconds}秒`}
                     </span>
                   </Link>
                 </li>
