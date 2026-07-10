@@ -48,20 +48,65 @@ function getAudioContext(): AudioContext | null {
   return audioCtx
 }
 
-function playTone(
-  ctx: AudioContext,
-  startTime: number,
-  freq: number,
-  duration: number,
-  peakGain: number,
-  type: OscillatorType,
-) {
-  const osc = ctx.createOscillator()
+function createNoiseBuffer(ctx: AudioContext, duration: number): AudioBuffer {
+  const length = Math.max(1, Math.floor(ctx.sampleRate * duration))
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
+  return buffer
+}
+
+/** A quick high-to-low whoosh: a card being flicked/thrown onto the table. */
+function playCardThrow(ctx: AudioContext, startTime: number) {
+  const duration = 0.18
+  const source = ctx.createBufferSource()
+  source.buffer = createNoiseBuffer(ctx, duration)
+  const filter = ctx.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.Q.value = 0.7
+  filter.frequency.setValueAtTime(4000, startTime)
+  filter.frequency.exponentialRampToValueAtTime(500, startTime + duration)
   const gainNode = ctx.createGain()
-  osc.type = type
-  osc.frequency.value = freq
   gainNode.gain.setValueAtTime(0, startTime)
-  gainNode.gain.linearRampToValueAtTime(peakGain, startTime + 0.01)
+  gainNode.gain.linearRampToValueAtTime(0.12, startTime + 0.01)
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
+  source.connect(filter)
+  filter.connect(gainNode)
+  gainNode.connect(ctx.destination)
+  source.start(startTime)
+  source.stop(startTime + duration + 0.02)
+}
+
+/** A single sharp chip clack, layered to sound like poker chips being set down. */
+function playChipClack(ctx: AudioContext, startTime: number, peakGain: number) {
+  const duration = 0.06
+  const source = ctx.createBufferSource()
+  source.buffer = createNoiseBuffer(ctx, duration)
+  const filter = ctx.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.value = 3000
+  filter.Q.value = 4
+  const gainNode = ctx.createGain()
+  gainNode.gain.setValueAtTime(0, startTime)
+  gainNode.gain.linearRampToValueAtTime(peakGain, startTime + 0.003)
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
+  source.connect(filter)
+  filter.connect(gainNode)
+  gainNode.connect(ctx.destination)
+  source.start(startTime)
+  source.stop(startTime + duration + 0.02)
+}
+
+/** A single knuckle-on-table knock. */
+function playKnock(ctx: AudioContext, startTime: number) {
+  const duration = 0.09
+  const osc = ctx.createOscillator()
+  osc.type = 'sine'
+  osc.frequency.setValueAtTime(120, startTime)
+  osc.frequency.exponentialRampToValueAtTime(55, startTime + duration)
+  const gainNode = ctx.createGain()
+  gainNode.gain.setValueAtTime(0, startTime)
+  gainNode.gain.linearRampToValueAtTime(0.22, startTime + 0.004)
   gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
   osc.connect(gainNode)
   gainNode.connect(ctx.destination)
@@ -69,32 +114,35 @@ function playTone(
   osc.stop(startTime + duration + 0.02)
 }
 
-const ACTION_SOUND_NOTES: Record<PokerActionType, { freq: number; type: OscillatorType }[]> = {
-  fold: [{ freq: 180, type: 'triangle' }],
-  check: [{ freq: 440, type: 'sine' }],
-  call: [{ freq: 523, type: 'sine' }],
-  bet: [
-    { freq: 660, type: 'sine' },
-    { freq: 880, type: 'sine' },
-  ],
-  raise: [
-    { freq: 660, type: 'square' },
-    { freq: 880, type: 'square' },
-    { freq: 1046, type: 'square' },
-  ],
-}
+const CHIP_CLACK_GAP = 0.05
+const KNOCK_GAP = 0.16
 
-const NOTE_DURATION = 0.11
-const NOTE_GAP = 0.09
-
-/** Plays a short synthesized sound distinct per action type. No audio assets
- * required; uses the Web Audio API directly. */
+/** Plays a short synthesized sound distinct per action type: a card throw for
+ * fold, chip clacks for bet/raise/call, and a double knock for check. No
+ * audio assets required; uses the Web Audio API directly. */
 export function playActionSound(action: PokerActionType): void {
   const ctx = getAudioContext()
   if (!ctx) return
-  const notes = ACTION_SOUND_NOTES[action]
-  const peakGain = action === 'fold' ? 0.1 : action === 'raise' ? 0.16 : 0.13
-  notes.forEach((note, i) => {
-    playTone(ctx, ctx.currentTime + i * NOTE_GAP, note.freq, NOTE_DURATION, peakGain, note.type)
-  })
+  const now = ctx.currentTime
+  switch (action) {
+    case 'fold':
+      playCardThrow(ctx, now)
+      break
+    case 'check':
+      playKnock(ctx, now)
+      playKnock(ctx, now + KNOCK_GAP)
+      break
+    case 'call':
+      playChipClack(ctx, now, 0.14)
+      break
+    case 'bet':
+      playChipClack(ctx, now, 0.14)
+      playChipClack(ctx, now + CHIP_CLACK_GAP, 0.13)
+      break
+    case 'raise':
+      playChipClack(ctx, now, 0.15)
+      playChipClack(ctx, now + CHIP_CLACK_GAP, 0.14)
+      playChipClack(ctx, now + CHIP_CLACK_GAP * 2, 0.15)
+      break
+  }
 }
