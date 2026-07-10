@@ -50,6 +50,16 @@ def is_odd_rank(card: str) -> bool:
     return _RANK_VALUES[card[0]] % 2 == 1
 
 
+def has_one_pair(hole_cards: list[str], community_cards: list[str]) -> bool:
+    ranks = [c[0] for c in hole_cards] + [c[0] for c in community_cards]
+    counts: dict[str, int] = {}
+    for r in ranks:
+        counts[r] = counts.get(r, 0) + 1
+    pair_count = sum(1 for c in counts.values() if c == 2)
+    has_trips_or_better = any(c >= 3 for c in counts.values())
+    return pair_count == 1 and not has_trips_or_better
+
+
 def clamp_bet_amount(state: dict, me: dict, amount: float) -> int | None:
     max_amount = me["current_bet"] + me["chips"]
     # Doubling current_bet always covers the true minimum raise (the required increment
@@ -69,6 +79,20 @@ def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | 
 
     # 自分のホールカード2枚がどちらも奇数ランクなら、ポットの33%レイズ(またはベット)を狙う
     if len(hole_cards) == 2 and all(is_odd_rank(c) for c in hole_cards):
+        raise_action = "raise" if "raise" in actions else ("bet" if "bet" in actions else None)
+        if raise_action is not None:
+            amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
+            if amount is not None:
+                return raise_action, amount
+
+    # フロップで自分の番までチェックが回ってきた(まだ誰もベットしていない)とき、
+    # ワンペア以上できていればレイズを狙う
+    if (
+        state["phase"] == "FLOP"
+        and state["current_bet"] == 0
+        and len(hole_cards) == 2
+        and has_one_pair(hole_cards, state["community_cards"])
+    ):
         raise_action = "raise" if "raise" in actions else ("bet" if "bet" in actions else None)
         if raise_action is not None:
             amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
