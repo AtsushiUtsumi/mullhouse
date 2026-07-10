@@ -50,12 +50,16 @@ def is_odd_rank(card: str) -> bool:
     return _RANK_VALUES[card[0]] % 2 == 1
 
 
-def clamp_bet_amount(state: dict, me: dict, amount: float) -> int:
+def clamp_bet_amount(state: dict, me: dict, amount: float) -> int | None:
     max_amount = me["current_bet"] + me["chips"]
     # Doubling current_bet always covers the true minimum raise (the required increment
     # can never exceed current_bet itself), so it's a safe floor without needing the
     # engine's exact min-raise increment.
     min_amount = max(state["big_blind"], state["current_bet"] * 2)
+    if max_amount < min_amount:
+        # 手持ちチップ全額を賭けても最小レイズに届かない場合、エンジンはショートオールインの
+        # レイズを許容しない(Raiseは常にcurrent_bet*2以上が必須)ため、レイズ自体を諦める。
+        return None
     return int(min(max(round(amount), min_amount), max_amount))
 
 
@@ -68,7 +72,8 @@ def choose_action(waiting_for: dict, me: dict, state: dict) -> tuple[str, int | 
         raise_action = "raise" if "raise" in actions else ("bet" if "bet" in actions else None)
         if raise_action is not None:
             amount = clamp_bet_amount(state, me, state["pot"] * 0.33)
-            return raise_action, amount
+            if amount is not None:
+                return raise_action, amount
 
     if "check" in actions:
         return "check", None
