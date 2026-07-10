@@ -50,6 +50,17 @@ def is_odd_rank(card: str) -> bool:
     return _RANK_VALUES[card[0]] % 2 == 1
 
 
+def is_below_ten_high_with_low_kicker(hole_cards: list[str]) -> bool:
+    """ノンペアで、ハイカードがTハイ未満(9以下)かつキッカー(ローカード)が4以下か判定。"""
+    if len(hole_cards) != 2:
+        return False
+    ranks = [_RANK_VALUES[c[0]] for c in hole_cards]
+    if ranks[0] == ranks[1]:
+        return False
+    high, low = max(ranks), min(ranks)
+    return high < 10 and low <= 4
+
+
 def is_ace_queen_offsuit(hole_cards: list[str]) -> bool:
     if len(hole_cards) != 2:
         return False
@@ -105,6 +116,14 @@ def choose_action(
 ) -> tuple[str, int | None]:
     actions = waiting_for["valid_actions"]
     hole_cards = me.get("hole_cards") or []
+
+    # プリフロップでTハイ未満(ハイカードが9以下)かつキッカーが4以下のトラッシュハンドは降りる
+    if (
+        state["phase"] == "PRE_FLOP"
+        and is_below_ten_high_with_low_kicker(hole_cards)
+        and "fold" in actions
+    ):
+        return "fold", None
 
     # 自分のホールカード2枚がどちらも奇数ランクなら、ポットの33%レイズ(またはベット)を狙う
     if len(hole_cards) == 2 and all(is_odd_rank(c) for c in hole_cards):
@@ -204,7 +223,7 @@ def main() -> None:
     parser.add_argument("--site-url", default=None, help="省略時は http://{host}")
     parser.add_argument("--table-name", default="テスト卓")
     parser.add_argument("--max-players", type=int, default=6)
-    parser.add_argument("--initial-chips", type=int, default=500)
+    parser.add_argument("--initial-chips", type=int, default=5000)
     parser.add_argument("--level-schedule", default="25/50/70,25/50/140,25/50/280,25/50/410")
     parser.add_argument("--num-bots", type=int, default=5)
     parser.add_argument("--bot-name-prefix", default="CPU")
