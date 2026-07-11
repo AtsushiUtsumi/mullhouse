@@ -27,3 +27,9 @@ export interface RangeListItem {
 
 export type PlayerType = 'hero' | 'villain'
 export type Street = 'preflop' | 'flop' | 'turn' | 'river'
+
+export interface AccountSummary {
+  id: string
+  username: string
+  coins: number
+}

@@ -389,6 +389,63 @@ input:focus, select:focus {
   border-left: 3px solid var(--accent);
 }
 
+.account-corner {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 20;
+}
+
+.account-corner-name {
+  display: inline-block;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.account-corner-name:hover {
+  border-color: var(--accent);
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 8rem;
+  overflow: hidden;
+}
+
+.account-menu-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-decoration: none;
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.account-menu-item:hover {
+  background: var(--surface2);
+}
+
 .hand-matrix-wrapper {
   overflow-x: auto;
 }

@@ -23,3 +23,6 @@ dist/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Local SQLite dev database (Docker uses the sqlite_data volume mounted at /app/db instead)
+/db/

@@ -19,6 +19,11 @@ export function Home() {
             <h2>ポーカー対戦</h2>
             <p>卓を作成・参加してポーカーをリアルタイムでプレイします。</p>
           </Link>
+
+          <Link to="/create-account" className="app-card">
+            <h2>アカウント作成</h2>
+            <p>ユーザー名とパスワードで新しいアカウントを作成します。</p>
+          </Link>
         </div>
       </main>
     </div>

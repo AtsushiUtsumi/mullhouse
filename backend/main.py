@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from accounts_api import router as accounts_router
 from poker_api import router as poker_router
 from solver import solve_range
 from storage import create_range_storage
@@ -29,6 +30,7 @@ app.add_middleware(
 )
 
 app.include_router(poker_router, prefix="/api/poker")
+app.include_router(accounts_router, prefix="/api")
 
 
 class RangeData(BaseModel):

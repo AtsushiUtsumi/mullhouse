@@ -12,7 +12,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-import type { RangeData, RangeListItem, SolverResult } from './types'
+import type { AccountSummary, RangeData, RangeListItem, SolverResult } from './types'
 
 export async function listRanges(): Promise<RangeListItem[]> {
   return fetchJson('/ranges')
@@ -39,4 +39,42 @@ export async function getPositions(): Promise<string[]> {
 
 export async function getActions(): Promise<Record<string, string[]>> {
   return fetchJson('/actions')
+}
+
+export async function createAccount(username: string, password: string): Promise<AccountSummary> {
+  return fetchJson('/accounts', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  })
+}
+
+export async function login(username: string, password: string): Promise<AccountSummary> {
+  return fetchJson('/accounts/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  })
+}
+
+export async function getAccount(id: string): Promise<AccountSummary> {
+  return fetchJson(`/accounts/${id}`)
+}
+
+const ACCOUNT_STORAGE_KEY = 'mullhouse:account'
+
+export function saveAccount(account: AccountSummary): void {
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify({ id: account.id, username: account.username }))
+}
+
+export function loadAccount(): { id: string; username: string } | null {
+  const raw = localStorage.getItem(ACCOUNT_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+export function clearAccount(): void {
+  localStorage.removeItem(ACCOUNT_STORAGE_KEY)
 }
