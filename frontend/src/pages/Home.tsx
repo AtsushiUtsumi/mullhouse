@@ -24,6 +24,11 @@ export function Home() {
             <h2>アカウント作成</h2>
             <p>ユーザー名とパスワードで新しいアカウントを作成します。</p>
           </Link>
+
+          <Link to="/hand-range-editor" className="app-card">
+            <h2>ハンドレンジエディター</h2>
+            <p>マトリクスでハンドレンジを構築します。ログイン時は保存できます。</p>
+          </Link>
         </div>
       </main>
     </div>

@@ -33,3 +33,10 @@ export interface AccountSummary {
   username: string
   coins: number
 }
+
+export interface SavedHandRange {
+  id: string
+  account_id: string
+  data: Record<string, number>
+  created_at: string
+}

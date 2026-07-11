@@ -9,6 +9,7 @@ import { PokerApiDocs } from './pages/PokerApiDocs'
 import { CreateAccount } from './pages/CreateAccount'
 import { Login } from './pages/Login'
 import { Settings } from './pages/Settings'
+import { HandRangeEditor } from './pages/HandRangeEditor'
 import { AccountCorner } from './components/AccountCorner'
 import './index.css'
 
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/login" element={<Login />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/hand-range-editor" element={<HandRangeEditor />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

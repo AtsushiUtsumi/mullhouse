@@ -12,7 +12,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-import type { AccountSummary, RangeData, RangeListItem, SolverResult } from './types'
+import type { AccountSummary, RangeData, RangeListItem, SavedHandRange, SolverResult } from './types'
 
 export async function listRanges(): Promise<RangeListItem[]> {
   return fetchJson('/ranges')
@@ -77,4 +77,18 @@ export function loadAccount(): { id: string; username: string } | null {
 
 export function clearAccount(): void {
   localStorage.removeItem(ACCOUNT_STORAGE_KEY)
+}
+
+export async function saveHandRange(
+  accountId: string,
+  data: Record<string, number>,
+): Promise<{ id: string; account_id: string; data: Record<string, number> }> {
+  return fetchJson('/hand-ranges', {
+    method: 'POST',
+    body: JSON.stringify({ account_id: accountId, data }),
+  })
+}
+
+export async function listHandRanges(accountId: string): Promise<SavedHandRange[]> {
+  return fetchJson(`/hand-ranges?account_id=${encodeURIComponent(accountId)}`)
 }
