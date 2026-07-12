@@ -82,10 +82,11 @@ export function clearAccount(): void {
 export async function saveHandRange(
   accountId: string,
   data: Record<string, number>,
-): Promise<{ id: string; account_id: string; data: Record<string, number> }> {
+  title: string,
+): Promise<{ id: string; account_id: string; data: Record<string, number>; title: string }> {
   return fetchJson('/hand-ranges', {
     method: 'POST',
-    body: JSON.stringify({ account_id: accountId, data }),
+    body: JSON.stringify({ account_id: accountId, data, title }),
   })
 }
 

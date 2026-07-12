@@ -38,5 +38,6 @@ export interface SavedHandRange {
   id: string
   account_id: string
   data: Record<string, number>
+  title: string
   created_at: string
 }

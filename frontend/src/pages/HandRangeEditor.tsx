@@ -10,6 +10,7 @@ function comboCount(data: Record<string, number>): number {
 
 export function HandRangeEditor() {
   const [range, setRange] = useState<Record<string, number>>({})
+  const [title, setTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [savedRanges, setSavedRanges] = useState<SavedHandRange[] | null>(null)
@@ -35,7 +36,7 @@ export function HandRangeEditor() {
     setSaving(true)
     setMessage('')
     try {
-      await saveHandRange(account.id, range)
+      await saveHandRange(account.id, range, title)
       setMessage('保存しました')
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e))
@@ -88,6 +89,13 @@ export function HandRangeEditor() {
 
           {account && (
             <div className="action-buttons">
+              <input
+                type="text"
+                className="title-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="タイトルを入力"
+              />
               <button type="button" className="btn primary" onClick={handleSave} disabled={saving}>
                 {saving ? '保存中...' : '保存'}
               </button>
@@ -108,7 +116,7 @@ export function HandRangeEditor() {
                   {savedRanges.map((item) => (
                     <li key={item.id}>
                       <button type="button" className="load-btn" onClick={() => handleLoad(item)}>
-                        <span className="load-pos">{new Date(item.created_at).toLocaleString('ja-JP')}</span>
+                        <span className="load-pos">{item.title || new Date(item.created_at).toLocaleString('ja-JP')}</span>
                         <span className="load-line">{comboCount(item.data).toFixed(1)} コンボ</span>
                       </button>
                     </li>

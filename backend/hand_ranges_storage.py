@@ -32,22 +32,25 @@ class HandRangeStorage:
                 )
                 """
             )
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(hand_ranges)")}
+            if "title" not in columns:
+                conn.execute("ALTER TABLE hand_ranges ADD COLUMN title TEXT NOT NULL DEFAULT ''")
             conn.commit()
 
-    def save_hand_range(self, account_id: str, data: dict[str, float]) -> dict[str, Any]:
+    def save_hand_range(self, account_id: str, data: dict[str, float], title: str = "") -> dict[str, Any]:
         range_id = uuid.uuid4().hex
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO hand_ranges (id, account_id, data) VALUES (?, ?, ?)",
-                (range_id, account_id, json.dumps(data)),
+                "INSERT INTO hand_ranges (id, account_id, data, title) VALUES (?, ?, ?, ?)",
+                (range_id, account_id, json.dumps(data), title),
             )
             conn.commit()
-        return {"id": range_id, "account_id": account_id, "data": data}
+        return {"id": range_id, "account_id": account_id, "data": data, "title": title}
 
     def list_hand_ranges(self, account_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, account_id, data, created_at FROM hand_ranges WHERE account_id = ? ORDER BY created_at DESC",
+                "SELECT id, account_id, data, title, created_at FROM hand_ranges WHERE account_id = ? ORDER BY created_at DESC",
                 (account_id,),
             ).fetchall()
         results = []

@@ -19,18 +19,21 @@ hand_range_storage = create_hand_range_storage(BASE_DIR)
 class SaveHandRangeRequest(BaseModel):
     account_id: str
     data: dict[str, float] = Field(default_factory=dict)
+    title: str = ""
 
 
 class HandRangeResponse(BaseModel):
     id: str
     account_id: str
     data: dict[str, float]
+    title: str
 
 
 class HandRangeSummary(BaseModel):
     id: str
     account_id: str
     data: dict[str, float]
+    title: str
     created_at: str
 
 
@@ -38,7 +41,7 @@ class HandRangeSummary(BaseModel):
 def save_hand_range(req: SaveHandRangeRequest) -> HandRangeResponse:
     if account_storage.get_account_by_id(req.account_id) is None:
         raise HTTPException(status_code=404, detail="Account not found")
-    result = hand_range_storage.save_hand_range(req.account_id, req.data)
+    result = hand_range_storage.save_hand_range(req.account_id, req.data, req.title)
     return HandRangeResponse(**result)
 
 
