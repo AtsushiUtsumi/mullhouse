@@ -23,6 +23,7 @@ export interface RangeListItem {
   board: string
   line: string[]
   path: string
+  title: string
 }
 
 export type PlayerType = 'hero' | 'villain'

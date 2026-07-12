@@ -14,16 +14,28 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 import type { AccountSummary, RangeData, RangeListItem, SavedHandRange, SolverResult } from './types'
 
-export async function listRanges(): Promise<RangeListItem[]> {
-  return fetchJson('/ranges')
+export async function listRanges(accountId: string): Promise<RangeListItem[]> {
+  return fetchJson(`/ranges?account_id=${encodeURIComponent(accountId)}`)
 }
 
-export async function saveRange(data: RangeData): Promise<{ path: string; message: string }> {
-  return fetchJson('/ranges', { method: 'POST', body: JSON.stringify(data) })
+export async function saveRange(
+  data: RangeData,
+  accountId: string,
+  title: string,
+): Promise<{ path: string; message: string }> {
+  return fetchJson('/ranges', {
+    method: 'POST',
+    body: JSON.stringify({ account_id: accountId, data, title }),
+  })
 }
 
-export async function loadRange(position: string, board: string, linePath: string): Promise<RangeData> {
-  return fetchJson(`/ranges/${position}/${board}/${linePath}`)
+export async function loadRange(
+  position: string,
+  board: string,
+  linePath: string,
+  accountId: string,
+): Promise<RangeData> {
+  return fetchJson(`/ranges/${position}/${board}/${linePath}?account_id=${encodeURIComponent(accountId)}`)
 }
 
 export async function solveRange(data: RangeData, iterations = 3000): Promise<SolverResult> {

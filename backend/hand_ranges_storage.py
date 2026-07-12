@@ -47,6 +47,14 @@ class HandRangeStorage:
             conn.commit()
         return {"id": range_id, "account_id": account_id, "data": data, "title": title}
 
+    def update_hand_range(self, range_id: str, data: dict[str, float], title: str = "") -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE hand_ranges SET data = ?, title = ? WHERE id = ?",
+                (json.dumps(data), title, range_id),
+            )
+            conn.commit()
+
     def list_hand_ranges(self, account_id: str) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(

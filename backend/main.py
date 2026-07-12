@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from accounts_api import account_storage
 from accounts_api import router as accounts_router
 from hand_ranges_api import router as hand_ranges_router
 from poker_api import router as poker_router
@@ -17,8 +18,7 @@ from solver import solve_range
 from storage import create_range_storage
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-RANGES_DIR = BASE_DIR / "ranges"
-storage = create_range_storage(RANGES_DIR, BASE_DIR)
+storage = create_range_storage(BASE_DIR)
 
 app = FastAPI(title="Poker Range System", version="1.0.0")
 
@@ -51,6 +51,12 @@ class SolveRequest(BaseModel):
     iterations: int = 3000
 
 
+class SaveRangeRequest(BaseModel):
+    account_id: str
+    data: RangeData
+    title: str = ""
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -71,22 +77,28 @@ def get_actions() -> dict[str, list[str]]:
 
 
 @app.get("/api/ranges")
-def api_list_ranges() -> list[dict[str, Any]]:
-    return storage.list_ranges()
+def api_list_ranges(account_id: str) -> list[dict[str, Any]]:
+    if account_storage.get_account_by_id(account_id) is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return storage.list_ranges(account_id)
 
 
 @app.get("/api/ranges/{position}/{board}/{line_path:path}")
-def api_get_range(position: str, board: str, line_path: str) -> dict[str, Any]:
+def api_get_range(position: str, board: str, line_path: str, account_id: str) -> dict[str, Any]:
+    if account_storage.get_account_by_id(account_id) is None:
+        raise HTTPException(status_code=404, detail="Account not found")
     try:
-        return storage.load_range(position, board, line_path)
+        return storage.load_range(position, board, line_path, account_id)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail="Range not found") from e
 
 
 @app.post("/api/ranges")
-def api_save_range(data: RangeData) -> dict[str, str]:
+def api_save_range(req: SaveRangeRequest) -> dict[str, str]:
+    if account_storage.get_account_by_id(req.account_id) is None:
+        raise HTTPException(status_code=404, detail="Account not found")
     try:
-        path = storage.save_range(data.model_dump())
+        path = storage.save_range(req.data.model_dump(), req.account_id, req.title)
         return {"path": path, "message": "saved"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

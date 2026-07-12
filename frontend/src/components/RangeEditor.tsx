@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { BoardCards } from './PlayingCard'
 import { HandMatrix } from './HandMatrix'
 import { SolverResults } from './SolverResults'
-import { getActions, listRanges, loadRange, saveRange, solveRange } from '../api'
+import { getActions, listRanges, loadAccount, loadRange, saveRange, solveRange } from '../api'
 import type { PlayerType, RangeData, RangeListItem, SolverResult, Street } from '../types'
 import {
   actionLabel,
@@ -50,7 +51,9 @@ export function RangeEditor() {
   const [solverError, setSolverError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [actions, setActions] = useState<Record<string, string[]>>(STREET_ACTIONS)
+  const [title, setTitle] = useState('')
 
+  const account = loadAccount()
   const line = [flopAction, turnAction, riverAction]
 
   const currentStreetAction =
@@ -60,13 +63,17 @@ export function RangeEditor() {
     : null
 
   const refreshSavedRanges = useCallback(async () => {
+    if (!account) {
+      setSavedRanges([])
+      return
+    }
     try {
-      const ranges = await listRanges()
+      const ranges = await listRanges(account.id)
       setSavedRanges(ranges)
     } catch {
       /* backend may not be running yet */
     }
-  }, [])
+  }, [account?.id])
 
   useEffect(() => {
     refreshSavedRanges()
@@ -120,13 +127,14 @@ export function RangeEditor() {
   })
 
   const handleSave = async () => {
+    if (!account) return
     if (!validateBoard(board)) {
       setMessage('ボードは5枚のカード（例: As5dTc6h8c）で入力してください')
       return
     }
     try {
       const data = buildRangeData()
-      const res = await saveRange(data)
+      const res = await saveRange(data, account.id, title)
       setMessage(`保存しました: ${res.path}`)
       await refreshSavedRanges()
     } catch (e) {
@@ -135,9 +143,10 @@ export function RangeEditor() {
   }
 
   const handleLoad = async (item: RangeListItem) => {
+    if (!account) return
     try {
       const filename = lineToFilename(item.line)
-      const data = await loadRange(item.position, item.board, filename)
+      const data = await loadRange(item.position, item.board, filename, account.id)
       setPosition(data.position)
       setBoard(data.board)
       if (data.line.length >= 3) {
@@ -321,19 +330,35 @@ export function RangeEditor() {
       <section className="panel actions-panel">
         <h2>保存 / 読み込み</h2>
         <div className="action-buttons">
-          <button type="button" className="btn primary" onClick={handleSave}>レンジ保存</button>
+          {account && (
+            <>
+              <input
+                type="text"
+                className="title-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="タイトルを入力"
+              />
+              <button type="button" className="btn primary" onClick={handleSave}>レンジ保存</button>
+            </>
+          )}
           <button type="button" className="btn accent" onClick={handleSolve}>ソルバー実行</button>
         </div>
+        {!account && (
+          <p className="hint">
+            レンジを保存するには<Link to="/login">ログイン</Link>してください。
+          </p>
+        )}
         {message && <div className="message">{message}</div>}
 
-        {savedRanges.length > 0 && (
+        {account && savedRanges.length > 0 && (
           <div className="saved-list">
             <h3>保存済みレンジ</h3>
             <ul>
               {savedRanges.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="load-btn" onClick={() => handleLoad(item)}>
-                    <span className="load-pos">{item.position}</span>
+                    <span className="load-pos">{item.title || item.position}</span>
                     <span className="load-board">{item.board}</span>
                     <span className="load-line">{item.line.join(' → ')}</span>
                   </button>
