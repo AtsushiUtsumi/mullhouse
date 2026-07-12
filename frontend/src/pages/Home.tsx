@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import { loadAccount } from '../api'
 
 export function Home() {
+  const account = loadAccount()
+
   return (
     <div className="home">
       <header className="home-header">
@@ -20,10 +23,12 @@ export function Home() {
             <p>卓を作成・参加してポーカーをリアルタイムでプレイします。</p>
           </Link>
 
-          <Link to="/create-account" className="app-card">
-            <h2>アカウント作成</h2>
-            <p>ユーザー名とパスワードで新しいアカウントを作成します。</p>
-          </Link>
+          {!account && (
+            <Link to="/create-account" className="app-card">
+              <h2>アカウント作成</h2>
+              <p>ユーザー名とパスワードで新しいアカウントを作成します。</p>
+            </Link>
+          )}
 
           <Link to="/hand-range-editor" className="app-card">
             <h2>ハンドレンジエディター</h2>
