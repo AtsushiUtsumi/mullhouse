@@ -7,7 +7,7 @@ export function Home() {
   return (
     <div className="home">
       <header className="home-header">
-        <h1>Mullhouse</h1>
+        <h1>Mullhouse(工事中!このサービスは使えません!)</h1>
         <p className="subtitle">ポーカーツール集</p>
       </header>
 
