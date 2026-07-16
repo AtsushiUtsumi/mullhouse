@@ -32,6 +32,7 @@ export async function createTable(params: {
   initial_chips?: number
   allow_rebuy?: boolean
   timeout_seconds?: number
+  fill_with_cpu?: boolean
 }): Promise<TableSummary> {
   return fetchJson('/tables', { method: 'POST', body: JSON.stringify(params) })
 }

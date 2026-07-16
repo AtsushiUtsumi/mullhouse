@@ -50,6 +50,7 @@ export function PokerLobby() {
   const [initialChips, setInitialChips] = useState<number | ''>('')
   const [allowRebuy, setAllowRebuy] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
+  const [fillWithCpu, setFillWithCpu] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -79,6 +80,7 @@ export function PokerLobby() {
         initial_chips: initialChips === '' ? undefined : initialChips,
         allow_rebuy: allowRebuy,
         timeout_seconds: timeoutSeconds,
+        fill_with_cpu: fillWithCpu,
       })
       navigate(`/poker/${table.table_id}`)
     } catch (e) {
@@ -197,6 +199,14 @@ export function PokerLobby() {
                 onChange={(e) => setAllowRebuy(e.target.checked)}
               />
               リバイを許可する
+            </label>
+            <label className="poker-checkbox-label">
+              <input
+                type="checkbox"
+                checked={fillWithCpu}
+                onChange={(e) => setFillWithCpu(e.target.checked)}
+              />
+              満員になるまでCPUを追加する
             </label>
           </div>
           <button type="button" className="btn primary" onClick={handleCreate} disabled={creating}>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import secrets
 import uuid
 from dataclasses import dataclass, field
@@ -12,6 +13,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from cpu import CPUDecisionContext, CPUStrategy, random_strategy
 from poker_domain import (
     Action,
     Bet,
@@ -41,6 +43,9 @@ logger = logging.getLogger(__name__)
 AUTO_START_DELAY = 2.0
 AUTO_NEXT_HAND_DELAY = 3.0
 DEFAULT_TIMEOUT_SECONDS = 15
+DEFAULT_CPU_BUY_IN = 1000
+CPU_THINK_MIN_SECONDS = 0.6
+CPU_THINK_MAX_SECONDS = 1.8
 
 
 class TableNotFoundError(Exception):
@@ -207,10 +212,11 @@ class TableMeta:
     tokens: dict[str, str] = field(default_factory=dict)
     names: dict[str, str] = field(default_factory=dict)
     connections: dict[str, WebSocket] = field(default_factory=dict)
+    cpu_players: dict[str, CPUStrategy] = field(default_factory=dict)
     auto_start_task: asyncio.Task | None = None
     auto_next_hand_task: asyncio.Task | None = None
     level_up_task: asyncio.Task | None = None
-    action_timeout_task: asyncio.Task | None = None
+    pending_turn_task: asyncio.Task | None = None
 
     def summary(self) -> dict[str, Any]:
         state = self.table.get_state()
@@ -237,6 +243,35 @@ class TableMeta:
 def _require_auth(meta: TableMeta, player_id: str, token: str) -> None:
     if meta.tokens.get(player_id) != token:
         raise AuthError("invalid player_id or token")
+
+
+def build_cpu_context(
+    meta: TableMeta, player_id: str, waiting_for: dict[str, Any]
+) -> CPUDecisionContext | None:
+    state = meta.table.get_state(viewer_player_id=player_id)
+    me = next((p for p in state.players if p.player_id == player_id), None)
+    if me is None or me.hole_cards is None:
+        return None
+    my_chips = me.chips.amount
+    my_current_bet = me.current_bet.amount
+    active_opponents = sum(1 for p in state.players if p.player_id != player_id and not p.folded)
+    return CPUDecisionContext(
+        hole_cards=(serialize_card(me.hole_cards[0]), serialize_card(me.hole_cards[1])),
+        community_cards=tuple(serialize_card(c) for c in state.community_cards),
+        valid_actions=tuple(waiting_for["valid_actions"]),
+        pot=state.pot.amount,
+        current_bet=state.current_bet.amount,
+        my_current_bet=my_current_bet,
+        my_chips=my_chips,
+        small_blind=state.small_blind.amount,
+        big_blind=state.big_blind.amount,
+        min_bet=state.big_blind.amount,
+        max_bet=my_chips,
+        min_raise_to=state.current_bet.amount * 2,
+        max_raise_to=my_current_bet + my_chips,
+        active_opponents=active_opponents,
+        phase=state.phase.name,
+    )
 
 
 def build_payload(meta: TableMeta, player_id: str, events: list[GameEvent] | None = None) -> dict[str, Any]:
@@ -270,6 +305,7 @@ class PokerService:
         initial_chips: int | None = None,
         allow_rebuy: bool = True,
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+        fill_with_cpu: bool = False,
     ) -> TableMeta:
         table_id = uuid.uuid4().hex[:8]
         small_blind, big_blind, ante = level_schedule[0]
@@ -302,11 +338,27 @@ class PokerService:
             ),
         )
         self._tables[table_id] = meta
+        if fill_with_cpu:
+            # 作成者自身がこの後「参加」で座る分の1席を必ず残しておく
+            self._seat_cpu_players(meta, max(0, max_players - 1))
         if level_up_interval_minutes and len(level_schedule) > 1:
             meta.level_up_task = asyncio.create_task(
                 self._run_level_up_loop(meta, level_up_interval_minutes * 60)
             )
         return meta
+
+    def _seat_cpu_players(self, meta: TableMeta, count: int) -> None:
+        rng = random.Random()
+        buy_in = meta.initial_chips or DEFAULT_CPU_BUY_IN
+        name_counts: dict[str, int] = {}
+        for _ in range(count):
+            strategy = random_strategy(rng)
+            name_counts[strategy.display_name] = name_counts.get(strategy.display_name, 0) + 1
+            suffix = f" {name_counts[strategy.display_name]}" if name_counts[strategy.display_name] > 1 else ""
+            player_id = f"cpu-{uuid.uuid4().hex[:8]}"
+            meta.table.add_player(player_id=player_id, chips=Chips(buy_in))
+            meta.names[player_id] = f"CPU:{strategy.display_name}{suffix}"
+            meta.cpu_players[player_id] = strategy
 
     def list_tables(self) -> list[dict[str, Any]]:
         """A single corrupted table (e.g. a poker_domain internal error) must not
@@ -451,20 +503,24 @@ class PokerService:
         await self._broadcast(meta, events)
 
     def _reschedule_action_timeout(self, meta: TableMeta) -> None:
-        """現在手番のプレイヤー向けにシンキングタイムのタイマーを(再)設定する。
+        """現在手番のプレイヤー向けにシンキングタイムのタイマー(またはCPUの着手)を(再)設定する。
 
         呼び出し元はすべて meta.lock を保持した状態で呼ぶこと。既存のタイマーは
         古い手番を指しているので必ずキャンセルしてから、現在の手番に対して張り直す。
         """
-        if meta.action_timeout_task is not None:
-            meta.action_timeout_task.cancel()
-            meta.action_timeout_task = None
+        if meta.pending_turn_task is not None:
+            meta.pending_turn_task.cancel()
+            meta.pending_turn_task = None
         state = meta.table.get_state()
         waiting_for = compute_waiting_for(state, meta.timeout_seconds)
         if waiting_for is not None:
-            meta.action_timeout_task = asyncio.create_task(
-                self._run_action_timeout(meta, waiting_for["player_id"])
-            )
+            meta.pending_turn_task = self._make_turn_task(meta, waiting_for["player_id"])
+
+    def _make_turn_task(self, meta: TableMeta, player_id: str) -> asyncio.Task:
+        """次の手番に対応するタスクを作る (自分自身をキャンセルしない、手番進行中の張り替え用)。"""
+        if player_id in meta.cpu_players:
+            return asyncio.create_task(self._run_cpu_turn(meta, player_id))
+        return asyncio.create_task(self._run_action_timeout(meta, player_id))
 
     async def _run_action_timeout(self, meta: TableMeta, player_id: str) -> None:
         """シンキングタイムが経過しても手番のプレイヤーがアクションしなかった場合、
@@ -485,16 +541,66 @@ class PokerService:
                     self._schedule_auto_next_hand(meta)
                 next_state = meta.table.get_state()
                 next_waiting_for = compute_waiting_for(next_state, meta.timeout_seconds)
-                meta.action_timeout_task = (
-                    asyncio.create_task(self._run_action_timeout(meta, next_waiting_for["player_id"]))
+                meta.pending_turn_task = (
+                    self._make_turn_task(meta, next_waiting_for["player_id"])
                     if next_waiting_for is not None
                     else None
                 )
         except asyncio.CancelledError:
             pass
         finally:
-            if meta.action_timeout_task is task:
-                meta.action_timeout_task = None
+            if meta.pending_turn_task is task:
+                meta.pending_turn_task = None
+        await self._broadcast(meta, events)
+
+    async def _run_cpu_turn(self, meta: TableMeta, player_id: str) -> None:
+        """CPUプレイヤーの手番。少し「考える」間を置いてから、そのCPUの戦略モジュールに
+        アクションを決めさせて実行する。戦略が無効なアクションを返した場合や例外を
+        投げた場合は、人間のタイムアウトと同じくチェック/フォールドにフォールバックする。"""
+        task = asyncio.current_task()
+        events: list[GameEvent] = []
+        try:
+            await asyncio.sleep(random.uniform(CPU_THINK_MIN_SECONDS, CPU_THINK_MAX_SECONDS))
+            async with meta.lock:
+                state = meta.table.get_state()
+                waiting_for = compute_waiting_for(state, meta.timeout_seconds)
+                if waiting_for is None or waiting_for["player_id"] != player_id:
+                    return
+                fallback: Action = Check() if "check" in waiting_for["valid_actions"] else Fold()
+                domain_action: Action = fallback
+                strategy = meta.cpu_players.get(player_id)
+                if strategy is not None:
+                    ctx = build_cpu_context(meta, player_id, waiting_for)
+                    if ctx is not None:
+                        try:
+                            decision = strategy.decide(ctx)
+                            domain_action = build_action(decision.action, decision.amount)
+                        except Exception:
+                            logger.exception(
+                                "CPU %s (%s) の意思決定に失敗したためフォールバックします",
+                                player_id,
+                                strategy.display_name,
+                            )
+                            domain_action = fallback
+                try:
+                    result = meta.table.action(player_id=player_id, action=domain_action)
+                except InvalidActionError:
+                    result = meta.table.action(player_id=player_id, action=fallback)
+                events = list(result.events)
+                if result.waiting_for is None and meta.table.get_state().phase == GamePhase.SHOWDOWN:
+                    self._schedule_auto_next_hand(meta)
+                next_state = meta.table.get_state()
+                next_waiting_for = compute_waiting_for(next_state, meta.timeout_seconds)
+                meta.pending_turn_task = (
+                    self._make_turn_task(meta, next_waiting_for["player_id"])
+                    if next_waiting_for is not None
+                    else None
+                )
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if meta.pending_turn_task is task:
+                meta.pending_turn_task = None
         await self._broadcast(meta, events)
 
     async def _run_level_up_loop(self, meta: TableMeta, interval_seconds: float) -> None:
