@@ -7,9 +7,9 @@ from cpu.base import (
     CPUDecision,
     CPUDecisionContext,
     CPUStrategy,
+    bet_amount,
     can_bet,
     can_raise,
-    clamp,
     fold_or_check,
 )
 from cpu.strength import hand_strength
@@ -29,7 +29,7 @@ class RockCPU(CPUStrategy):
 
         if "call" not in ctx.valid_actions:
             if can_bet(ctx) and strength >= self.VALUE_THRESHOLD:
-                amount = clamp(int(ctx.pot * 0.5), ctx.min_bet, ctx.max_bet)
+                amount = bet_amount(ctx, int(ctx.pot * 0.5))
                 return CPUDecision("bet", amount)
             return fold_or_check(ctx)
 

@@ -59,7 +59,17 @@ def clamp(value: int, low: int, high: int) -> int:
 
 
 def can_bet(ctx: CPUDecisionContext) -> bool:
-    return "bet" in ctx.valid_actions and ctx.max_bet >= ctx.min_bet
+    # スタックが min_bet(BB) に満たないショートスタックでも、全額のオールインベットは
+    # poker_domain 側で合法 (amount == 手持ちチップ全額なら BB 未満でも許可される)。
+    return "bet" in ctx.valid_actions and ctx.max_bet > 0
+
+
+def bet_amount(ctx: CPUDecisionContext, target: int) -> int:
+    """ベット目標額を合法範囲にクランプする。スタックが min_bet 未満のショート
+    スタックは全額ベット(オールイン)以外に選択肢がないため、そちらに丸める。"""
+    if ctx.max_bet < ctx.min_bet:
+        return ctx.max_bet
+    return clamp(target, ctx.min_bet, ctx.max_bet)
 
 
 def can_raise(ctx: CPUDecisionContext) -> bool:

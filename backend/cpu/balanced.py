@@ -7,6 +7,7 @@ from cpu.base import (
     CPUDecision,
     CPUDecisionContext,
     CPUStrategy,
+    bet_amount,
     can_bet,
     can_raise,
     clamp,
@@ -25,7 +26,7 @@ class BalancedCPU(CPUStrategy):
         if "call" not in ctx.valid_actions:
             bet_probability = max(0.0, strength - 0.4)
             if can_bet(ctx) and self.rng.random() < bet_probability:
-                amount = clamp(int(ctx.pot * (0.4 + strength * 0.4)), ctx.min_bet, ctx.max_bet)
+                amount = bet_amount(ctx, int(ctx.pot * (0.4 + strength * 0.4)))
                 return CPUDecision("bet", amount)
             return fold_or_check(ctx)
 

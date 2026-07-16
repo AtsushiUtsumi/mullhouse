@@ -7,6 +7,7 @@ from cpu.base import (
     CPUDecision,
     CPUDecisionContext,
     CPUStrategy,
+    bet_amount,
     can_bet,
     can_raise,
     clamp,
@@ -31,7 +32,7 @@ class SharkCPU(CPUStrategy):
         if "call" not in ctx.valid_actions:
             if can_bet(ctx) and (strength >= self.VALUE_THRESHOLD or is_bluff):
                 fraction = 0.75 if strength >= self.VALUE_THRESHOLD else 0.5
-                amount = clamp(int(ctx.pot * fraction), ctx.min_bet, ctx.max_bet)
+                amount = bet_amount(ctx, int(ctx.pot * fraction))
                 return CPUDecision("bet", amount)
             return fold_or_check(ctx)
 

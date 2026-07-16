@@ -7,9 +7,9 @@ from cpu.base import (
     CPUDecision,
     CPUDecisionContext,
     CPUStrategy,
+    bet_amount,
     call_or_check,
     can_bet,
-    clamp,
 )
 from cpu.strength import hand_strength
 
@@ -27,7 +27,7 @@ class CallingStationCPU(CPUStrategy):
 
         if "call" not in ctx.valid_actions:
             if can_bet(ctx) and strength >= self.BET_THRESHOLD and self.rng.random() < self.BET_FREQUENCY:
-                amount = clamp(int(ctx.pot * 0.5), ctx.min_bet, ctx.max_bet)
+                amount = bet_amount(ctx, int(ctx.pot * 0.5))
                 return CPUDecision("bet", amount)
             return call_or_check(ctx)
 

@@ -7,6 +7,7 @@ from cpu.base import (
     CPUDecision,
     CPUDecisionContext,
     CPUStrategy,
+    bet_amount,
     call_or_check,
     can_bet,
     can_raise,
@@ -27,7 +28,7 @@ class ManiacCPU(CPUStrategy):
 
         if "call" not in ctx.valid_actions:
             if can_bet(ctx) and self.rng.random() < self.AGGRESSION:
-                amount = clamp(int(ctx.pot * self.rng.uniform(0.7, 1.2)), ctx.min_bet, ctx.max_bet)
+                amount = bet_amount(ctx, int(ctx.pot * self.rng.uniform(0.7, 1.2)))
                 return CPUDecision("bet", amount)
             return call_or_check(ctx)
 
