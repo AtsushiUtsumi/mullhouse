@@ -39,18 +39,20 @@ function parseLevelSchedule(text: string): [number, number, number][] {
 export function PokerLobby() {
   const navigate = useNavigate()
   const [tables, setTables] = useState<TableSummary[]>([])
-  const [name, setName] = useState('')
+  const [name, setName] = useState('練習用卓')
   const [maxPlayers, setMaxPlayers] = useState(6)
   const [rakePercent, setRakePercent] = useState(0)
   const [rakeCap, setRakeCap] = useState<number | ''>('')
   const [rakeMinPot, setRakeMinPot] = useState<number | ''>('')
-  const [levelSchedule, setLevelSchedule] = useState('25/50/0')
-  const [levelUpInterval, setLevelUpInterval] = useState<number | ''>('')
+  const [levelSchedule, setLevelSchedule] = useState(
+    '100/200/50, 140/280/70, 200/400/100, 280/560/140, 390/780/200, 550/1100/280',
+  )
+  const [levelUpInterval, setLevelUpInterval] = useState<number | ''>(5)
   const [requireFullTable, setRequireFullTable] = useState(false)
-  const [initialChips, setInitialChips] = useState<number | ''>('')
-  const [allowRebuy, setAllowRebuy] = useState(true)
-  const [timeoutSeconds, setTimeoutSeconds] = useState(15)
-  const [fillWithCpu, setFillWithCpu] = useState(false)
+  const [initialChips, setInitialChips] = useState<number | ''>(15000)
+  const [allowRebuy, setAllowRebuy] = useState(false)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(8)
+  const [fillWithCpu, setFillWithCpu] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
