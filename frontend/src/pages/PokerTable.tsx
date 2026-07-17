@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { loadAccount } from '../api'
 import { PlayingCard } from '../components/PlayingCard'
 import {
   clearCredentials,
@@ -84,7 +85,8 @@ export function PokerTable() {
   const [creds, setCreds] = useState<PokerCredentials | null>(null)
   const [payload, setPayload] = useState<PokerStatePayload | null>(null)
   const [tableSummary, setTableSummary] = useState<TableSummary | null>(null)
-  const [displayName, setDisplayName] = useState('')
+  const account = loadAccount()
+  const [displayName, setDisplayName] = useState(account?.username ?? '')
   const [buyIn, setBuyIn] = useState<number>(DEFAULT_BUY_IN)
   const [rebuyAmount, setRebuyAmount] = useState<number>(DEFAULT_BUY_IN)
   const [error, setError] = useState('')
@@ -243,6 +245,7 @@ export function PokerTable() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="プレイヤー"
+                  disabled={!!account}
                 />
               </label>
               <label>
