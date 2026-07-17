@@ -15,16 +15,9 @@ from cpu.base import (
     clamp,
     fold_or_check,
 )
+from cpu.cards import RANK_VALUE, Board, HoleHand
 from cpu.strength import hand_strength
 from hand_eval import Card, evaluate_hand
-
-_RANK_VALUE = {r: v for v, r in enumerate("23456789TJQKA", start=2)}
-
-
-def _hole_ranks(hole_cards: tuple[str, str]) -> tuple[int, int]:
-    """(ハイカードのランク, キッカーのランク) を返す。"""
-    high, low = sorted((_RANK_VALUE[c[0].upper()] for c in hole_cards), reverse=True)
-    return high, low
 
 
 def _hand_category(hole_cards: tuple[str, str], community_cards: tuple[str, ...]) -> int:
@@ -34,11 +27,10 @@ def _hand_category(hole_cards: tuple[str, str], community_cards: tuple[str, ...]
     return category
 
 
-def _has_top_pair(hole_cards: tuple[str, str], community_cards: tuple[str, ...], category: int) -> bool:
+def _has_top_pair(hand: HoleHand, board: Board, category: int) -> bool:
     if category != 1:
         return False
-    board_top = max(_RANK_VALUE[c[0].upper()] for c in community_cards)
-    return board_top in _hole_ranks(hole_cards)
+    return hand.contains_rank(board.high_card)
 
 
 class YoshidaCPU(CPUStrategy):
@@ -93,17 +85,16 @@ class YoshidaCPU(CPUStrategy):
         if opponents == 0:
             return fold_or_check(ctx)
 
-        high, kicker = _hole_ranks(ctx.hole_cards)
-        # ポケットペアはキッカーという概念がそぐわないため、フォールド判定の対象外にする
-        is_pocket_pair = high == kicker
+        hand = HoleHand.from_cards(ctx.hole_cards)
 
         if opponents == 1:
-            if not is_pocket_pair and kicker <= 4 and high <= _RANK_VALUE["T"]:
+            # ポケットペアはキッカーという概念がそぐわないため、フォールド判定の対象外にする
+            if not hand.is_pocket_pair and hand.kicker <= 4 and hand.high <= RANK_VALUE["T"]:
                 return CPUDecision("fold")
             return CPUDecision("call")
 
         threshold = self._OPEN_FOLD_KICKER_THRESHOLD[opponents]
-        if not is_pocket_pair and kicker <= threshold:
+        if not hand.is_pocket_pair and hand.kicker <= threshold:
             return CPUDecision("fold")
         amount = clamp(int(ctx.big_blind * self._OPEN_RAISE_BB), ctx.min_raise_to, ctx.max_raise_to)
         return CPUDecision("raise", amount)
@@ -113,7 +104,9 @@ class YoshidaCPU(CPUStrategy):
         if ctx.phase == "RIVER":
             is_value_hand = category >= 2
         else:
-            is_value_hand = category >= 2 or _has_top_pair(ctx.hole_cards, ctx.community_cards, category)
+            hand = HoleHand.from_cards(ctx.hole_cards)
+            board = Board(ctx.community_cards)
+            is_value_hand = category >= 2 or _has_top_pair(hand, board, category)
 
         if not is_value_hand:
             return fold_or_check(ctx)
