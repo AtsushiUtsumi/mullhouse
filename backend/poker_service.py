@@ -245,6 +245,34 @@ def _require_auth(meta: TableMeta, player_id: str, token: str) -> None:
         raise AuthError("invalid player_id or token")
 
 
+def _seat_action_rank(seat_index: int, dealer_index: int, num_seats: int, phase: GamePhase) -> int:
+    """座席インデックスを、現在のフェーズにおける行動順(0=最初, num_seats-1=最後)に変換する。
+    poker_domain 側の着手順ロジック(table.py の start_game/_advance_phase)と対応させている。
+    """
+    if phase is GamePhase.PRE_FLOP:
+        start = dealer_index if num_seats == 2 else (dealer_index + 3) % num_seats
+    else:
+        start = (dealer_index + 1) % num_seats
+    return (seat_index - start) % num_seats
+
+
+def _players_to_act_after(state: GameState, player_id: str) -> int:
+    """現在のベッティングラウンドで、自分より後に行動する(フォールド/オールインしていない)人数。"""
+    players = state.players
+    num_seats = len(players)
+    dealer_index = next(i for i, p in enumerate(players) if p.player_id == state.dealer_id)
+    hero_index = next(i for i, p in enumerate(players) if p.player_id == player_id)
+    hero_rank = _seat_action_rank(hero_index, dealer_index, num_seats, state.phase)
+    return sum(
+        1
+        for i, p in enumerate(players)
+        if p.player_id != player_id
+        and not p.folded
+        and not p.is_all_in
+        and _seat_action_rank(i, dealer_index, num_seats, state.phase) > hero_rank
+    )
+
+
 def build_cpu_context(
     meta: TableMeta, player_id: str, waiting_for: dict[str, Any]
 ) -> CPUDecisionContext | None:
@@ -255,6 +283,7 @@ def build_cpu_context(
     my_chips = me.chips.amount
     my_current_bet = me.current_bet.amount
     active_opponents = sum(1 for p in state.players if p.player_id != player_id and not p.folded)
+    players_to_act_after = _players_to_act_after(state, player_id)
     return CPUDecisionContext(
         hole_cards=(serialize_card(me.hole_cards[0]), serialize_card(me.hole_cards[1])),
         community_cards=tuple(serialize_card(c) for c in state.community_cards),
@@ -271,6 +300,7 @@ def build_cpu_context(
         max_raise_to=my_current_bet + my_chips,
         active_opponents=active_opponents,
         phase=state.phase.name,
+        players_to_act_after=players_to_act_after,
     )
 
 

@@ -32,6 +32,14 @@ class CPUDecisionContext:
     max_raise_to: int
     active_opponents: int
     phase: str
+    # 現在のベッティングラウンドで自分より後に行動する(フォールド/オールインしていない)人数。
+    # 座席順とディーラーボタンの位置から算出される。
+    players_to_act_after: int
+
+    @property
+    def is_in_position(self) -> bool:
+        """ポストフロップで自分が最後に行動する(=ポジションを持っている)かどうか。"""
+        return self.players_to_act_after == 0
 
 
 @dataclass(frozen=True)
