@@ -14,7 +14,7 @@ import {
   saveCredentials,
   submitAction,
 } from '../pokerApi'
-import { detectLastAction, playActionSound } from '../pokerSounds'
+import { detectLastAction, playActionSound, playTurnBell } from '../pokerSounds'
 import type {
   PokerActionType,
   PokerCredentials,
@@ -92,6 +92,7 @@ export function PokerTable() {
   const [error, setError] = useState('')
   const [betAmount, setBetAmount] = useState<number>(0)
   const [rebuying, setRebuying] = useState(false)
+  const [lastActions, setLastActions] = useState<Record<string, PokerActionType>>({})
   const wsRef = useRef<WebSocket | null>(null)
   const prevStateRef = useRef<PokerGameState | null>(null)
 
@@ -152,11 +153,26 @@ export function PokerTable() {
     if (!payload) return
     const prevState = prevStateRef.current
     if (prevState) {
-      const action = detectLastAction(prevState, payload.state)
-      if (action) playActionSound(action)
+      if (prevState.dealer_id !== payload.state.dealer_id) {
+        setLastActions({})
+      } else {
+        const actorId = prevState.current_player_id
+        const action = detectLastAction(prevState, payload.state)
+        if (action) {
+          playActionSound(action)
+          if (actorId) setLastActions((prev) => ({ ...prev, [actorId]: action }))
+        }
+      }
+      if (
+        creds &&
+        payload.state.current_player_id === creds.player_id &&
+        prevState.current_player_id !== creds.player_id
+      ) {
+        playTurnBell()
+      }
     }
     prevStateRef.current = payload.state
-  }, [payload])
+  }, [payload, creds])
 
   const handleJoin = async () => {
     if (!tableId) return
@@ -346,7 +362,9 @@ export function PokerTable() {
                   </div>
                   <div className="poker-seat-chips">チップ: {p.chips}</div>
                   <div className="poker-seat-bet">ベット: {p.current_bet}</div>
-                  {p.folded && <div className="poker-seat-status">フォールド</div>}
+                  {lastActions[p.player_id] && (
+                    <div className="poker-seat-status">{ACTION_LABELS[lastActions[p.player_id]]}</div>
+                  )}
                   {p.is_all_in && <div className="poker-seat-status">オールイン</div>}
                   {!p.folded && (
                     <div className="board-cards-row">

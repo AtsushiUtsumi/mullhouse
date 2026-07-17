@@ -37,6 +37,9 @@ export function detectLastAction(prev: PokerGameState, next: PokerGameState): Po
   return 'call'
 }
 
+/** 全体の音量倍率。個々の play*() 関数のピークゲインにまとめて掛ける。 */
+const VOLUME_MULTIPLIER = 3
+
 let audioCtx: AudioContext | null = null
 
 function getAudioContext(): AudioContext | null {
@@ -68,7 +71,7 @@ function playCardThrow(ctx: AudioContext, startTime: number) {
   filter.frequency.exponentialRampToValueAtTime(500, startTime + duration)
   const gainNode = ctx.createGain()
   gainNode.gain.setValueAtTime(0, startTime)
-  gainNode.gain.linearRampToValueAtTime(0.12, startTime + 0.01)
+  gainNode.gain.linearRampToValueAtTime(0.12 * VOLUME_MULTIPLIER, startTime + 0.01)
   gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
   source.connect(filter)
   filter.connect(gainNode)
@@ -88,7 +91,7 @@ function playChipClack(ctx: AudioContext, startTime: number, peakGain: number) {
   filter.Q.value = 4
   const gainNode = ctx.createGain()
   gainNode.gain.setValueAtTime(0, startTime)
-  gainNode.gain.linearRampToValueAtTime(peakGain, startTime + 0.003)
+  gainNode.gain.linearRampToValueAtTime(peakGain * VOLUME_MULTIPLIER, startTime + 0.003)
   gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
   source.connect(filter)
   filter.connect(gainNode)
@@ -106,12 +109,38 @@ function playKnock(ctx: AudioContext, startTime: number) {
   osc.frequency.exponentialRampToValueAtTime(55, startTime + duration)
   const gainNode = ctx.createGain()
   gainNode.gain.setValueAtTime(0, startTime)
-  gainNode.gain.linearRampToValueAtTime(0.22, startTime + 0.004)
+  gainNode.gain.linearRampToValueAtTime(0.22 * VOLUME_MULTIPLIER, startTime + 0.004)
   gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
   osc.connect(gainNode)
   gainNode.connect(ctx.destination)
   osc.start(startTime)
   osc.stop(startTime + duration + 0.02)
+}
+
+/** A short two-tone bell/chime, distinct from the action sounds: notifies the
+ * viewer that it is now their turn to act. */
+export function playTurnBell(): void {
+  const ctx = getAudioContext()
+  if (!ctx) return
+  const now = ctx.currentTime
+  const duration = 0.6
+  const partials: Array<[frequency: number, peakGain: number]> = [
+    [880, 0.22],
+    [1318.5, 0.12],
+  ]
+  for (const [frequency, peakGain] of partials) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(frequency, now)
+    const gainNode = ctx.createGain()
+    gainNode.gain.setValueAtTime(0, now)
+    gainNode.gain.linearRampToValueAtTime(peakGain * VOLUME_MULTIPLIER, now + 0.01)
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration)
+    osc.connect(gainNode)
+    gainNode.connect(ctx.destination)
+    osc.start(now)
+    osc.stop(now + duration + 0.02)
+  }
 }
 
 const CHIP_CLACK_GAP = 0.05
