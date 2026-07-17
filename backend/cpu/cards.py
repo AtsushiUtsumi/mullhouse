@@ -87,12 +87,12 @@ class Board:
         return rank_value in self.ranks
 
 
+@dataclass(frozen=True)
 class HandEvaluation:
     """ホールカードとボードを合わせた役の評価。"""
 
-    def __init__(self, hand: HoleHand, board: Board) -> None:
-        self.hand = hand
-        self.board = board
+    hand: HoleHand
+    board: Board
 
     def _cards(self) -> tuple[tuple[Card, Card], list[Card]]:
         hole = (Card.from_str(self.hand.cards[0]), Card.from_str(self.hand.cards[1]))
