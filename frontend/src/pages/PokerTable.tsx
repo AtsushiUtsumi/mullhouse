@@ -348,16 +348,18 @@ export function PokerTable() {
                   <div className="poker-seat-bet">ベット: {p.current_bet}</div>
                   {p.folded && <div className="poker-seat-status">フォールド</div>}
                   {p.is_all_in && <div className="poker-seat-status">オールイン</div>}
-                  <div className="board-cards-row">
-                    {p.hole_cards ? (
-                      p.hole_cards.map((card, i2) => <PlayingCard key={`${card}-${i2}`} card={card} />)
-                    ) : (
-                      <>
-                        <div className="playing-card back" />
-                        <div className="playing-card back" />
-                      </>
-                    )}
-                  </div>
+                  {!p.folded && (
+                    <div className="board-cards-row">
+                      {p.hole_cards ? (
+                        p.hole_cards.map((card, i2) => <PlayingCard key={`${card}-${i2}`} card={card} />)
+                      ) : (
+                        <>
+                          <div className="playing-card back" />
+                          <div className="playing-card back" />
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

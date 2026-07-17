@@ -939,6 +939,8 @@ input:focus, select:focus {
 
 .poker-seat.folded {
   opacity: 0.5;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .poker-seat-name {
