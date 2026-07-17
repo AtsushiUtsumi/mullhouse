@@ -45,7 +45,9 @@ export function PokerLobby() {
   const [rakeCap, setRakeCap] = useState<number | ''>('')
   const [rakeMinPot, setRakeMinPot] = useState<number | ''>('')
   const [levelSchedule, setLevelSchedule] = useState(
-    '100/200/50, 140/280/70, 200/400/100, 280/560/140, 390/780/200, 550/1100/280',
+    '100/200/50, 140/280/70, 200/400/100, 280/560/140, 390/780/200, 550/1100/280, ' +
+      '820/1640/410, 1250/2500/630, 1900/3800/950, 2850/5700/1400, 4300/8600/2200, ' +
+      '6500/13000/3200, 9800/19600/4900, 14750/29500/7400, 22150/44300/11000, 30000/60000/15000',
   )
   const [levelUpInterval, setLevelUpInterval] = useState<number | ''>(5)
   const [requireFullTable, setRequireFullTable] = useState(false)
