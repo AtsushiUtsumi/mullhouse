@@ -223,7 +223,7 @@ export function PokerTable() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [creds, payload])
+  }, [creds, payload, betAmount])
 
   const handleJoin = async () => {
     if (!tableId) return
