@@ -219,6 +219,14 @@ export function PokerTable() {
         handleAction('raise')
       } else if (e.key.toLowerCase() === 'b' && validActions.includes('bet')) {
         handleAction('bet')
+      } else if (e.key === '0') {
+        const betOrRaise = validActions.find((a) => a === 'bet' || a === 'raise')
+        const me = payload.state.players.find((p) => p.player_id === creds.player_id)
+        if (betOrRaise && me) {
+          const allInAmount = me.current_bet + me.chips
+          setBetAmount(allInAmount)
+          handleAction(betOrRaise, allInAmount)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -240,11 +248,11 @@ export function PokerTable() {
     }
   }
 
-  const handleAction = async (action: PokerActionType) => {
+  const handleAction = async (action: PokerActionType, amountOverride?: number) => {
     if (!tableId || !creds) return
     setError('')
     try {
-      const amount = action === 'bet' || action === 'raise' ? betAmount : undefined
+      const amount = action === 'bet' || action === 'raise' ? (amountOverride ?? betAmount) : undefined
       const res = await submitAction(tableId, creds, action, amount)
       setPayload(res)
     } catch (e) {
@@ -470,7 +478,7 @@ export function PokerTable() {
                               className="btn"
                               onClick={() => me && setBetAmount(me.current_bet + me.chips)}
                             >
-                              オールイン
+                              オールイン (0)
                             </button>
                           </div>
                           <div className="poker-action-row">
