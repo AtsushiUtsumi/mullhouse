@@ -891,9 +891,9 @@ input:focus, select:focus {
 .poker-table-oval {
   position: relative;
   width: 100%;
-  max-width: 760px;
-  min-height: 380px;
-  aspect-ratio: 16 / 10;
+  max-width: 1200px;
+  min-height: 460px;
+  aspect-ratio: 2 / 1;
   margin: 0 auto 2rem;
   border-radius: 50%;
   background: radial-gradient(ellipse at center, #1e3a2f 0%, #16281f 70%, #0f1419 100%);
