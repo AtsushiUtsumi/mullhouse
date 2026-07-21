@@ -79,6 +79,14 @@ const ACTION_LABELS: Record<PokerActionType, string> = {
   raise: 'レイズ',
 }
 
+const ACTION_SHORTCUT_LABELS: Record<PokerActionType, string> = {
+  fold: 'Space',
+  check: 'Space',
+  call: 'C',
+  bet: 'B',
+  raise: 'R',
+}
+
 export function PokerTable() {
   const { tableId } = useParams<{ tableId: string }>()
   const navigate = useNavigate()
@@ -93,8 +101,10 @@ export function PokerTable() {
   const [betAmount, setBetAmount] = useState<number>(0)
   const [rebuying, setRebuying] = useState(false)
   const [lastActions, setLastActions] = useState<Record<string, PokerActionType>>({})
+  const [autoCheckFold, setAutoCheckFold] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const prevStateRef = useRef<PokerGameState | null>(null)
+  const autoActingRef = useRef(false)
 
   const connect = useCallback(
     (nextCreds: PokerCredentials) => {
@@ -155,6 +165,7 @@ export function PokerTable() {
     if (prevState) {
       if (prevState.dealer_id !== payload.state.dealer_id) {
         setLastActions({})
+        setAutoCheckFold(false)
       } else {
         const actorId = prevState.current_player_id
         const action = detectLastAction(prevState, payload.state)
@@ -173,6 +184,46 @@ export function PokerTable() {
     }
     prevStateRef.current = payload.state
   }, [payload, creds])
+
+  useEffect(() => {
+    if (!autoCheckFold || !payload || !creds || autoActingRef.current) return
+    const waitingFor = payload.waiting_for
+    if (!waitingFor || waitingFor.player_id !== creds.player_id) return
+    autoActingRef.current = true
+    setAutoCheckFold(false)
+    const action: PokerActionType = waitingFor.valid_actions.includes('check') ? 'check' : 'fold'
+    handleAction(action).finally(() => {
+      autoActingRef.current = false
+    })
+  }, [autoCheckFold, payload, creds])
+
+  useEffect(() => {
+    if (!creds || !payload) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'q') {
+        setAutoCheckFold((prev) => !prev)
+        return
+      }
+
+      const waitingFor = payload.waiting_for
+      if (!waitingFor || waitingFor.player_id !== creds.player_id) return
+      const validActions = waitingFor.valid_actions
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault()
+        const action = validActions.includes('check') ? 'check' : validActions.includes('fold') ? 'fold' : null
+        if (action) handleAction(action)
+      } else if (e.key.toLowerCase() === 'c' && validActions.includes('call')) {
+        handleAction('call')
+      } else if (e.key.toLowerCase() === 'r' && validActions.includes('raise')) {
+        handleAction('raise')
+      } else if (e.key.toLowerCase() === 'b' && validActions.includes('bet')) {
+        handleAction('bet')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [creds, payload])
 
   const handleJoin = async () => {
     if (!tableId) return
@@ -385,6 +436,16 @@ export function PokerTable() {
 
           {me && !isGameOver && (
             <div className="poker-action-bar">
+              {handInProgress && (
+                <label className="poker-checkbox-label poker-autocheckfold">
+                  <input
+                    type="checkbox"
+                    checked={autoCheckFold}
+                    onChange={(e) => setAutoCheckFold(e.target.checked)}
+                  />
+                  チェック/フォールド (Q)
+                </label>
+              )}
               {waitingFor && isMyTurn ? (
                 (() => {
                   const betOrRaise = waitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
@@ -450,12 +511,12 @@ export function PokerTable() {
                             className={`btn ${action === 'fold' ? '' : 'primary'}`}
                             onClick={() => handleAction(action)}
                           >
-                            {ACTION_LABELS[action]}
+                            {ACTION_LABELS[action]} ({ACTION_SHORTCUT_LABELS[action]})
                           </button>
                         ))}
                         {betOrRaise && (
                           <button type="button" className="btn accent" onClick={() => handleAction(betOrRaise)}>
-                            {ACTION_LABELS[betOrRaise]}
+                            {ACTION_LABELS[betOrRaise]} ({ACTION_SHORTCUT_LABELS[betOrRaise]})
                           </button>
                         )}
                       </div>
