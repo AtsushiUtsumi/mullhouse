@@ -131,7 +131,10 @@ def compute_waiting_for(state: GameState, timeout_seconds: int) -> dict[str, Any
     if state.phase in (GamePhase.WAITING, GamePhase.SHOWDOWN) or state.current_player_id is None:
         return None
     current = next(p for p in state.players if p.player_id == state.current_player_id)
-    actions = ["fold", "check" if current.current_bet.amount == state.current_bet.amount else "call"]
+    # アンティ拠出がcurrent_betに混入する poker_domain 側の既知の不整合により、
+    # 稀に自分の current_bet がテーブルの current_bet を上回ることがある。
+    # その場合も call ではなく check を提示しないと Call 適用時に diff が負になり例外になる。
+    actions = ["fold", "check" if current.current_bet.amount >= state.current_bet.amount else "call"]
     actions.append("bet" if state.current_bet.amount == 0 else "raise")
     return {
         "player_id": state.current_player_id,
@@ -615,6 +618,14 @@ class PokerService:
                 try:
                     result = meta.table.action(player_id=player_id, action=domain_action)
                 except InvalidActionError:
+                    result = meta.table.action(player_id=player_id, action=fallback)
+                except Exception:
+                    # poker_domain 側の未知の不整合等で予期せぬ例外が出ても、
+                    # このタスクが黙って落ちてテーブルの進行が停止するのは避ける。
+                    logger.exception(
+                        "CPU %s の手番適用中に予期しない例外が発生したためフォールバックします",
+                        player_id,
+                    )
                     result = meta.table.action(player_id=player_id, action=fallback)
                 events = list(result.events)
                 if result.waiting_for is None and meta.table.get_state().phase == GamePhase.SHOWDOWN:
