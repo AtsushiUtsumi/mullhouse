@@ -873,6 +873,61 @@ input:focus, select:focus {
   gap: 1rem;
 }
 
+.poker-fullscreen {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.poker-table-panel-fullscreen {
+  flex: 1;
+  padding: 3rem 1.5rem 1.5rem;
+}
+
+.poker-table-subtitle {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-family: var(--mono);
+  margin-bottom: 0.75rem;
+}
+
+.poker-float-btn {
+  position: fixed;
+  top: 0.75rem;
+  z-index: 30;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.poker-float-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.poker-float-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.poker-float-back {
+  left: 0.75rem;
+}
+
+.poker-float-leave {
+  right: 0.75rem;
+}
+
 .poker-pot-row {
   display: flex;
   align-items: baseline;

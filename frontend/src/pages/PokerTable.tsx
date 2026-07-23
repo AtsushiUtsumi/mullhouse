@@ -424,29 +424,28 @@ export function PokerTable() {
   const isGameOver = isBusted || isWinner
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div className="header-content">
-          <Link to="/poker" className="home-link">← ロビー</Link>
-          <h1>ポーカー対戦</h1>
-          <p className="subtitle">
-            {PHASE_LABELS[state.phase] ?? state.phase}
-            {state.phase === 'WAITING' && ` (${waitingHint(payload)})`} · Lv.{state.level + 1} SB
-            {state.small_blind}/BB{state.big_blind}
-            {state.ante > 0 && ` · アンティ${state.ante}`}
-            {state.rake_percent > 0 && ` · レーキ${(state.rake_percent * 100).toFixed(1)}%`}
-          </p>
-        </div>
-        {!isGameOver && (
-          <button type="button" className="btn" onClick={handleLeave} disabled={handInProgress}>
-            卓を離れる
-          </button>
-        )}
-      </header>
+    <div className="poker-fullscreen">
+      <Link to="/poker" className="poker-float-btn poker-float-back">← ロビー</Link>
+      {!isGameOver && (
+        <button
+          type="button"
+          className="poker-float-btn poker-float-leave"
+          onClick={handleLeave}
+          disabled={handInProgress}
+        >
+          卓を離れる
+        </button>
+      )}
 
-      <main className="app-main">
-        <section className="panel poker-table-panel">
-          <div className="poker-table-oval">
+      <section className="poker-table-panel poker-table-panel-fullscreen">
+        <p className="poker-table-subtitle">
+          {PHASE_LABELS[state.phase] ?? state.phase}
+          {state.phase === 'WAITING' && ` (${waitingHint(payload)})`} · Lv.{state.level + 1} SB
+          {state.small_blind}/BB{state.big_blind}
+          {state.ante > 0 && ` · アンティ${state.ante}`}
+          {state.rake_percent > 0 && ` · レーキ${(state.rake_percent * 100).toFixed(1)}%`}
+        </p>
+        <div className="poker-table-oval">
             <div className="poker-table-center">
               <div className="poker-pot-row">
                 <span className="rec-label">ポット</span>
@@ -635,7 +634,6 @@ export function PokerTable() {
 
           {!isGameOver && error && <p className="message">{error}</p>}
         </section>
-      </main>
 
       {isGameOver && (
         <div className="poker-busted-overlay">
