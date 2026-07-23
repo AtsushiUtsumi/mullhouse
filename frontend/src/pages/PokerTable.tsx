@@ -87,6 +87,20 @@ const ACTION_SHORTCUT_LABELS: Record<PokerActionType, string> = {
   raise: 'R',
 }
 
+const RANK_VALUES: Record<string, number> = {
+  A: 14, K: 13, Q: 12, J: 11, T: 10,
+  '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
+}
+
+/** キッカー(2枚目)が4以下のTハイ以下(ハイカードがT以下)かどうか。 */
+function isLowKickerTHighOrLower(holeCards: string[] | null): boolean {
+  if (!holeCards || holeCards.length !== 2) return false
+  const [v1, v2] = holeCards.map((c) => RANK_VALUES[c[0]?.toUpperCase()] ?? 0)
+  const hi = Math.max(v1, v2)
+  const lo = Math.min(v1, v2)
+  return v1 !== v2 && hi <= 10 && lo <= 4
+}
+
 export function PokerTable() {
   const { tableId } = useParams<{ tableId: string }>()
   const navigate = useNavigate()
@@ -102,6 +116,7 @@ export function PokerTable() {
   const [rebuying, setRebuying] = useState(false)
   const [lastActions, setLastActions] = useState<Record<string, PokerActionType>>({})
   const [autoCheckFold, setAutoCheckFold] = useState(false)
+  const [semiAutoPlay, setSemiAutoPlay] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const prevStateRef = useRef<PokerGameState | null>(null)
   const autoActingRef = useRef(false)
@@ -165,7 +180,12 @@ export function PokerTable() {
     if (prevState) {
       if (prevState.dealer_id !== payload.state.dealer_id) {
         setLastActions({})
-        setAutoCheckFold(false)
+        if (semiAutoPlay && creds) {
+          const me = payload.state.players.find((p) => p.player_id === creds.player_id)
+          setAutoCheckFold(isLowKickerTHighOrLower(me?.hole_cards ?? null))
+        } else {
+          setAutoCheckFold(false)
+        }
       } else {
         const actorId = prevState.current_player_id
         const action = detectLastAction(prevState, payload.state)
@@ -183,7 +203,7 @@ export function PokerTable() {
       }
     }
     prevStateRef.current = payload.state
-  }, [payload, creds])
+  }, [payload, creds, semiAutoPlay])
 
   useEffect(() => {
     if (!autoCheckFold || !payload || !creds || autoActingRef.current) return
@@ -202,6 +222,10 @@ export function PokerTable() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'q') {
         setAutoCheckFold((prev) => !prev)
+        return
+      }
+      if (e.key.toLowerCase() === 's') {
+        setSemiAutoPlay((prev) => !prev)
         return
       }
 
@@ -444,6 +468,16 @@ export function PokerTable() {
 
           {me && !isGameOver && (
             <div className="poker-action-bar">
+              {handInProgress && (
+                <label className="poker-checkbox-label poker-semiautoplay">
+                  <input
+                    type="checkbox"
+                    checked={semiAutoPlay}
+                    onChange={(e) => setSemiAutoPlay(e.target.checked)}
+                  />
+                  セミオートプレイ (S)
+                </label>
+              )}
               {handInProgress && (
                 <label className="poker-checkbox-label poker-autocheckfold">
                   <input
