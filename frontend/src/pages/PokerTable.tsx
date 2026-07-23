@@ -92,13 +92,45 @@ const RANK_VALUES: Record<string, number> = {
   '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
 }
 
-/** キッカー(2枚目)が4以下のTハイ以下(ハイカードがT以下)かどうか。 */
-function isLowKickerTHighOrLower(holeCards: string[] | null): boolean {
-  if (!holeCards || holeCards.length !== 2) return false
-  const [v1, v2] = holeCards.map((c) => RANK_VALUES[c[0]?.toUpperCase()] ?? 0)
+/** 後ろに控えたプレイヤーの人数に応じたキッカーのフォールド閾値。
+ * 人数が多いほど後ろからのプレッシャーが強いため、閾値を上げて広く降りる。 */
+function kickerThresholdForPlayersBehind(playersBehind: number): number | null {
+  if (playersBehind >= 4) return 9
+  if (playersBehind === 3) return 8
+  if (playersBehind === 2) return 7
+  return null
+}
+
+/** セミオートプレイのチェック/フォールド自動判定。
+ * 「後ろに控えたプレイヤーの人数」「卓に残っている人数」「ハンド」の3つを引数に取り、
+ * 卓の人数が5〜6人の場合に限り、オフスートでキッカーが閾値以下のTハイ以下なら降りる。 */
+function shouldAutoCheckFold(playersBehind: number, tableSize: number, holeCards: string[] | null): boolean {
+  if (tableSize < 5 || tableSize > 6) return false
+  const kickerThreshold = kickerThresholdForPlayersBehind(playersBehind)
+  if (kickerThreshold === null || !holeCards || holeCards.length !== 2) return false
+  const [c1, c2] = holeCards
+  const v1 = RANK_VALUES[c1[0]?.toUpperCase()] ?? 0
+  const v2 = RANK_VALUES[c2[0]?.toUpperCase()] ?? 0
+  const suited = c1[1]?.toLowerCase() === c2[1]?.toLowerCase()
   const hi = Math.max(v1, v2)
   const lo = Math.min(v1, v2)
-  return v1 !== v2 && hi <= 10 && lo <= 4
+  return !suited && v1 !== v2 && hi <= 10 && lo <= kickerThreshold
+}
+
+/** プリフロップでheroより後に行動する(フォールド/オールインしていない)人数。
+ * backend の `_players_to_act_after` と同じ着席順ロジック。 */
+function playersToActAfter(state: PokerGameState, playerId: string): number {
+  const players = state.players
+  const numSeats = players.length
+  const dealerIndex = players.findIndex((p) => p.player_id === state.dealer_id)
+  const heroIndex = players.findIndex((p) => p.player_id === playerId)
+  if (dealerIndex === -1 || heroIndex === -1) return 0
+  const start = numSeats === 2 ? dealerIndex : (dealerIndex + 3) % numSeats
+  const rank = (i: number) => (((i - start) % numSeats) + numSeats) % numSeats
+  const heroRank = rank(heroIndex)
+  return players.filter(
+    (p, i) => p.player_id !== playerId && !p.folded && !p.is_all_in && rank(i) > heroRank,
+  ).length
 }
 
 export function PokerTable() {
@@ -182,7 +214,9 @@ export function PokerTable() {
         setLastActions({})
         if (semiAutoPlay && creds) {
           const me = payload.state.players.find((p) => p.player_id === creds.player_id)
-          setAutoCheckFold(isLowKickerTHighOrLower(me?.hole_cards ?? null))
+          const tableSize = payload.state.players.length
+          const playersBehind = playersToActAfter(payload.state, creds.player_id)
+          setAutoCheckFold(shouldAutoCheckFold(playersBehind, tableSize, me?.hole_cards ?? null))
         } else {
           setAutoCheckFold(false)
         }
