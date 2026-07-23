@@ -22,6 +22,7 @@ import type {
   PokerPlayerState,
   PokerStatePayload,
   TableSummary,
+  WaitingFor,
 } from '../pokerTypes'
 
 const DEFAULT_BUY_IN = 1000
@@ -149,6 +150,7 @@ export function PokerTable() {
   const [lastActions, setLastActions] = useState<Record<string, PokerActionType>>({})
   const [autoCheckFold, setAutoCheckFold] = useState(false)
   const [semiAutoPlay, setSemiAutoPlay] = useState(false)
+  const [cachedWaitingFor, setCachedWaitingFor] = useState<WaitingFor | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const prevStateRef = useRef<PokerGameState | null>(null)
   const autoActingRef = useRef(false)
@@ -195,6 +197,12 @@ export function PokerTable() {
   useEffect(() => {
     if (payload?.initial_chips != null) setRebuyAmount(payload.initial_chips)
   }, [payload?.initial_chips])
+
+  useEffect(() => {
+    if (payload?.waiting_for && creds && payload.waiting_for.player_id === creds.player_id) {
+      setCachedWaitingFor(payload.waiting_for)
+    }
+  }, [payload, creds])
 
   useEffect(() => {
     if (!payload) return
@@ -407,6 +415,7 @@ export function PokerTable() {
 
   const { state, waiting_for: waitingFor, rebuy_available: rebuyAvailable } = payload
   const isMyTurn = waitingFor?.player_id === creds.player_id
+  const displayWaitingFor = isMyTurn ? waitingFor : cachedWaitingFor
   const me = state.players.find((p) => p.player_id === creds.player_id)
   const handInProgress = state.phase !== 'WAITING' && state.phase !== 'SHOWDOWN'
   const isBusted = (me !== undefined && me.chips === 0 && state.phase === 'SHOWDOWN') || me === undefined
@@ -522,16 +531,18 @@ export function PokerTable() {
                   チェック/フォールド (Q)
                 </label>
               )}
-              {waitingFor && isMyTurn ? (
+              {displayWaitingFor ? (
                 (() => {
-                  const betOrRaise = waitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
-                  const otherActions = waitingFor.valid_actions.filter((a) => a !== 'bet' && a !== 'raise')
+                  const betOrRaise = displayWaitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
+                  const otherActions = displayWaitingFor.valid_actions.filter(
+                    (a) => a !== 'bet' && a !== 'raise',
+                  )
                   // checking is free, so folding instead is never useful: only offer fold when facing a call
                   const displayedActions = otherActions.includes('check')
                     ? otherActions.filter((a) => a !== 'fold')
                     : otherActions
                   return (
-                    <div className="poker-action-bar-turn">
+                    <div className={`poker-action-bar-turn ${isMyTurn ? '' : 'waiting'}`}>
                       {betOrRaise && (
                         <>
                           <div className="poker-action-row">
@@ -539,11 +550,13 @@ export function PokerTable() {
                               type="number"
                               value={betAmount}
                               min={state.big_blind}
+                              disabled={!isMyTurn}
                               onChange={(e) => setBetAmount(Number(e.target.value))}
                             />
                             <button
                               type="button"
                               className="btn"
+                              disabled={!isMyTurn}
                               onClick={() => me && setBetAmount(me.current_bet + me.chips)}
                             >
                               オールイン (0)
@@ -556,6 +569,7 @@ export function PokerTable() {
                                   key={mult}
                                   type="button"
                                   className="btn"
+                                  disabled={!isMyTurn}
                                   onClick={() =>
                                     me && setBetAmount(clampBetAmount(state, me, state.current_bet * mult))
                                   }
@@ -569,6 +583,7 @@ export function PokerTable() {
                                   key={fraction}
                                   type="button"
                                   className="btn"
+                                  disabled={!isMyTurn}
                                   onClick={() =>
                                     me && setBetAmount(clampBetAmount(state, me, state.pot * fraction))
                                   }
@@ -585,17 +600,28 @@ export function PokerTable() {
                             key={action}
                             type="button"
                             className={`btn ${action === 'fold' ? '' : 'primary'}`}
+                            disabled={!isMyTurn}
                             onClick={() => handleAction(action)}
                           >
                             {ACTION_LABELS[action]} ({ACTION_SHORTCUT_LABELS[action]})
                           </button>
                         ))}
                         {betOrRaise && (
-                          <button type="button" className="btn accent" onClick={() => handleAction(betOrRaise)}>
+                          <button
+                            type="button"
+                            className="btn accent"
+                            disabled={!isMyTurn}
+                            onClick={() => handleAction(betOrRaise)}
+                          >
                             {ACTION_LABELS[betOrRaise]} ({ACTION_SHORTCUT_LABELS[betOrRaise]})
                           </button>
                         )}
                       </div>
+                      {!isMyTurn && (
+                        <p className="hint">
+                          {handInProgress ? '相手の手番です...' : '次のハンドの開始を待っています...'}
+                        </p>
+                      )}
                     </div>
                   )
                 })()

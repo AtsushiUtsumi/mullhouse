@@ -1004,6 +1004,10 @@ input:focus, select:focus {
   width: 100%;
 }
 
+.poker-action-bar-turn.waiting .poker-action-row {
+  opacity: 0.5;
+}
+
 .poker-action-row {
   display: flex;
   gap: 0.5rem;
