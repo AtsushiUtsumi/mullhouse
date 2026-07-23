@@ -30,6 +30,12 @@ const DEFAULT_BUY_IN = 1000
 const RAISE_MULTIPLIERS = [2, 2.5, 3, 4]
 const BET_POT_FRACTIONS = [0.2, 0.33, 0.5, 0.75, 1.25]
 
+/** 左端のボタンが1、そこから右に向かって2,3,...と増える数字ショートカットを返す。
+ * ボタン数が増減しても1〜9の範囲でそのまま割り振り直せる。 */
+function shortcutForIndex(index: number): number {
+  return index + 1
+}
+
 function clampBetAmount(state: PokerGameState, me: PokerPlayerState, amount: number): number {
   const max = me.current_bet + me.chips
   return Math.min(Math.max(Math.round(amount), state.big_blind), max)
@@ -292,6 +298,23 @@ export function PokerTable() {
           const allInAmount = me.current_bet + me.chips
           setBetAmount(allInAmount)
           handleAction(betOrRaise, allInAmount)
+        }
+      } else if (/^[1-9]$/.test(e.key)) {
+        const betOrRaise = validActions.find((a) => a === 'bet' || a === 'raise')
+        const me = payload.state.players.find((p) => p.player_id === creds.player_id)
+        if (betOrRaise && me) {
+          const index = Number(e.key) - 1
+          if (betOrRaise === 'raise') {
+            const mult = RAISE_MULTIPLIERS[index]
+            if (mult !== undefined) {
+              setBetAmount(clampBetAmount(payload.state, me, payload.state.current_bet * mult))
+            }
+          } else {
+            const fraction = BET_POT_FRACTIONS[index]
+            if (fraction !== undefined) {
+              setBetAmount(clampBetAmount(payload.state, me, payload.state.pot * fraction))
+            }
+          }
         }
       }
     }
@@ -559,7 +582,7 @@ export function PokerTable() {
                           </div>
                           <div className="poker-action-row">
                             {betOrRaise === 'raise' &&
-                              RAISE_MULTIPLIERS.map((mult) => (
+                              RAISE_MULTIPLIERS.map((mult, idx) => (
                                 <button
                                   key={mult}
                                   type="button"
@@ -569,11 +592,11 @@ export function PokerTable() {
                                     me && setBetAmount(clampBetAmount(state, me, state.current_bet * mult))
                                   }
                                 >
-                                  x{mult}
+                                  x{mult} ({shortcutForIndex(idx)})
                                 </button>
                               ))}
                             {betOrRaise === 'bet' &&
-                              BET_POT_FRACTIONS.map((fraction) => (
+                              BET_POT_FRACTIONS.map((fraction, idx) => (
                                 <button
                                   key={fraction}
                                   type="button"
@@ -583,7 +606,7 @@ export function PokerTable() {
                                     me && setBetAmount(clampBetAmount(state, me, state.pot * fraction))
                                   }
                                 >
-                                  {Math.round(fraction * 100)}%
+                                  {Math.round(fraction * 100)}% ({shortcutForIndex(idx)})
                                 </button>
                               ))}
                           </div>
