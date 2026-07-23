@@ -510,26 +510,22 @@ export function PokerTable() {
 
           {me && !isGameOver && (
             <div className="poker-action-bar">
-              {handInProgress && (
-                <label className="poker-checkbox-label poker-semiautoplay">
-                  <input
-                    type="checkbox"
-                    checked={semiAutoPlay}
-                    onChange={(e) => setSemiAutoPlay(e.target.checked)}
-                  />
-                  セミオートプレイ (S)
-                </label>
-              )}
-              {handInProgress && (
-                <label className="poker-checkbox-label poker-autocheckfold">
-                  <input
-                    type="checkbox"
-                    checked={autoCheckFold}
-                    onChange={(e) => setAutoCheckFold(e.target.checked)}
-                  />
-                  チェック/フォールド (Q)
-                </label>
-              )}
+              <label className="poker-checkbox-label poker-semiautoplay">
+                <input
+                  type="checkbox"
+                  checked={semiAutoPlay}
+                  onChange={(e) => setSemiAutoPlay(e.target.checked)}
+                />
+                セミオートプレイ (S)
+              </label>
+              <label className="poker-checkbox-label poker-autocheckfold">
+                <input
+                  type="checkbox"
+                  checked={autoCheckFold}
+                  onChange={(e) => setAutoCheckFold(e.target.checked)}
+                />
+                チェック/フォールド (Q)
+              </label>
               {displayWaitingFor ? (
                 (() => {
                   const betOrRaise = displayWaitingFor.valid_actions.find((a) => a === 'bet' || a === 'raise')
