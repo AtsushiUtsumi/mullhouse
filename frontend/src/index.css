@@ -509,6 +509,12 @@ input:focus, select:focus {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.matrix-cell.selected {
+  border-color: var(--gold);
+  border-width: 2px;
+  box-shadow: 0 0 0 1px var(--gold);
+}
+
 .cell-hand {
   font-size: 0.68rem;
   font-family: var(--mono);
@@ -530,6 +536,102 @@ input:focus, select:focus {
   margin-top: 0.5rem;
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.matrix-with-suit-editor {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.suit-combo-editor {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  min-width: 220px;
+}
+
+.suit-combo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.suit-combo-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.suit-combo-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+}
+
+.suit-combo-close:hover {
+  color: var(--text);
+}
+
+.suit-combo-grid {
+  display: grid;
+  grid-template-columns: 32px repeat(4, 40px);
+  gap: 3px;
+  user-select: none;
+}
+
+.suit-combo-corner {
+  background: transparent;
+}
+
+.suit-combo-axis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-muted);
+}
+
+.suit-combo-axis.suit-h,
+.suit-combo-axis.suit-d {
+  color: #d0342c;
+}
+
+.suit-combo-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.suit-combo-cell:hover {
+  transform: scale(1.08);
+  border-color: var(--accent);
+}
+
+.suit-combo-cell.disabled {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+
+.suit-combo-cell .cell-freq {
+  font-size: 0.65rem;
+  font-family: var(--mono);
 }
 
 .saved-list ul {

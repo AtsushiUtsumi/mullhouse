@@ -74,6 +74,38 @@ export function toggleFreq(current: number): number {
   return current > 0 ? 0 : 1
 }
 
+// スートコンボ関連 -----------------------------------------------------
+// ハンドラベル（例: "AKo", "AKs", "AA"）は上位ランクが先頭に来る（getHandLabel参照）。
+// isValidCombo/comboKey/getCombosForHand はその前提で動作する。
+
+export function isValidCombo(hand: string, suit1: string, suit2: string): boolean {
+  const r1 = hand[0]
+  const r2 = hand[1]
+  const type = hand.length >= 3 ? hand[2] : undefined
+  if (r1 === r2) {
+    const suitOrder: readonly string[] = SUITS
+    return suit1 !== suit2 && suitOrder.indexOf(suit1) < suitOrder.indexOf(suit2)
+  }
+  if (type === 's') return suit1 === suit2
+  return suit1 !== suit2
+}
+
+export function comboKey(hand: string, suit1: string, suit2: string): string {
+  const r1 = hand[0]
+  const r2 = hand[1]
+  return `${r1}${suit1}${r2}${suit2}`
+}
+
+export function getCombosForHand(hand: string): string[] {
+  const combos: string[] = []
+  for (const s1 of SUITS) {
+    for (const s2 of SUITS) {
+      if (isValidCombo(hand, s1, s2)) combos.push(comboKey(hand, s1, s2))
+    }
+  }
+  return combos
+}
+
 export function freqColor(freq: number, baseHue: number): string {
   if (freq <= 0) return 'transparent'
   const alpha = 0.25 + freq * 0.65

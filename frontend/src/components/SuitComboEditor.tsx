@@ -1,0 +1,63 @@
+import { Fragment } from 'react'
+import { SUITS, SUIT_SYMBOLS, comboKey, freqColor, isValidCombo, toggleFreq } from '../utils/hands'
+
+interface SuitComboEditorProps {
+  hand: string
+  comboRange: Record<string, number>
+  onChange: (combo: string, freq: number) => void
+  onClose?: () => void
+  hue?: number
+}
+
+export function SuitComboEditor({ hand, comboRange, onChange, onClose, hue = 145 }: SuitComboEditorProps) {
+  const r1 = hand[0]
+  const r2 = hand[1]
+
+  return (
+    <div className="suit-combo-editor">
+      <div className="suit-combo-header">
+        <span className="suit-combo-title">{hand} のコンボ</span>
+        {onClose && (
+          <button type="button" className="suit-combo-close" onClick={onClose} aria-label="閉じる">
+            ×
+          </button>
+        )}
+      </div>
+      <div className="suit-combo-grid">
+        <div className="suit-combo-corner" />
+        {SUITS.map((s) => (
+          <div key={`col-${s}`} className={`suit-combo-axis suit-${s}`}>
+            {r2}{SUIT_SYMBOLS[s]}
+          </div>
+        ))}
+        {SUITS.map((s1) => (
+          <Fragment key={`row-${s1}`}>
+            <div className={`suit-combo-axis suit-${s1}`}>
+              {r1}{SUIT_SYMBOLS[s1]}
+            </div>
+            {SUITS.map((s2) => {
+              if (!isValidCombo(hand, s1, s2)) {
+                return <div key={`${s1}-${s2}`} className="suit-combo-cell disabled" />
+              }
+              const combo = comboKey(hand, s1, s2)
+              const freq = comboRange[combo] ?? 0
+              return (
+                <button
+                  key={`${s1}-${s2}`}
+                  type="button"
+                  className={`suit-combo-cell ${freq > 0 ? 'active' : ''}`}
+                  style={{ backgroundColor: freqColor(freq, hue) }}
+                  onClick={() => onChange(combo, toggleFreq(freq))}
+                  title={`${combo}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`}
+                >
+                  {freq > 0 && <span className="cell-freq">{Math.round(freq * 100)}</span>}
+                </button>
+              )
+            })}
+          </Fragment>
+        ))}
+      </div>
+      <p className="hint">クリックでコンボごとに選択/解除。頻度はハンド全体に平均反映されます。</p>
+    </div>
+  )
+}

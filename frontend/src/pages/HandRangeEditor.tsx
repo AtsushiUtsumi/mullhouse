@@ -1,15 +1,29 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HandMatrix } from '../components/HandMatrix'
+import { SuitComboEditor } from '../components/SuitComboEditor'
 import { listHandRanges, loadAccount, saveHandRange } from '../api'
 import type { SavedHandRange } from '../types'
+import { getCombosForHand } from '../utils/hands'
 
 function comboCount(data: Record<string, number>): number {
   return Object.values(data).reduce((sum, f) => sum + (f > 0 ? f : 0), 0)
 }
 
+// ハンド単位のレンジを、各ハンドの全スートコンボへ展開する（コンボ別頻度の初期値として利用）。
+function expandRangeToCombos(range: Record<string, number>): Record<string, number> {
+  const combos: Record<string, number> = {}
+  for (const [hand, freq] of Object.entries(range)) {
+    if (freq <= 0) continue
+    for (const c of getCombosForHand(hand)) combos[c] = freq
+  }
+  return combos
+}
+
 export function HandRangeEditor() {
   const [range, setRange] = useState<Record<string, number>>({})
+  const [comboRange, setComboRange] = useState<Record<string, number>>({})
+  const [selectedHand, setSelectedHand] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -18,7 +32,8 @@ export function HandRangeEditor() {
 
   const account = loadAccount()
 
-  const handleHandChange = (hand: string, freq: number) => {
+  // ハンド単位の頻度だけを更新する（range のみ変更、コンボ別の内訳には触れない）
+  const setHandFreq = (hand: string, freq: number) => {
     setRange((prev) => {
       const next = { ...prev }
       if (freq <= 0) delete next[hand]
@@ -27,8 +42,37 @@ export function HandRangeEditor() {
     })
   }
 
+  // マス全体をクリックした場合: そのハンドの全スートを同じ頻度に揃えて選択/解除する
+  const handleHandChange = (hand: string, freq: number) => {
+    setHandFreq(hand, freq)
+    setComboRange((prev) => {
+      const next = { ...prev }
+      for (const c of getCombosForHand(hand)) {
+        if (freq <= 0) delete next[c]
+        else next[c] = freq
+      }
+      return next
+    })
+  }
+
+  // スート別エディタで個別コンボを編集した場合: そのコンボだけ変更し、ハンド頻度は平均値に更新する
+  const handleComboChange = (hand: string, combo: string, freq: number) => {
+    const combos = getCombosForHand(hand)
+    const baseFreq = range[hand] ?? 0
+    const updated: Record<string, number> = {}
+    for (const c of combos) {
+      updated[c] = comboRange[c] ?? baseFreq
+    }
+    updated[combo] = freq
+    setComboRange((prev) => ({ ...prev, ...updated }))
+    const avg = combos.reduce((sum, c) => sum + updated[c], 0) / combos.length
+    setHandFreq(hand, avg)
+  }
+
   const clearRange = () => {
     setRange({})
+    setComboRange({})
+    setSelectedHand(null)
   }
 
   const handleSave = async () => {
@@ -65,6 +109,8 @@ export function HandRangeEditor() {
 
   const handleLoad = (item: SavedHandRange) => {
     setRange(item.data)
+    setComboRange(expandRangeToCombos(item.data))
+    setSelectedHand(null)
     setSavedRanges(null)
     setMessage('読み込みました')
   }
@@ -84,8 +130,26 @@ export function HandRangeEditor() {
           <div className="matrix-actions">
             <button type="button" className="btn" onClick={clearRange}>クリア</button>
           </div>
-          <HandMatrix range={range} onChange={handleHandChange} label="ハンドレンジ" />
-          <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
+          <div className="matrix-with-suit-editor">
+            <div>
+              <HandMatrix
+                range={range}
+                onChange={handleHandChange}
+                onSelectHand={setSelectedHand}
+                selectedHand={selectedHand}
+                label="ハンドレンジ"
+              />
+              <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
+            </div>
+            {selectedHand && (
+              <SuitComboEditor
+                hand={selectedHand}
+                comboRange={comboRange}
+                onChange={(combo, freq) => handleComboChange(selectedHand, combo, freq)}
+                onClose={() => setSelectedHand(null)}
+              />
+            )}
+          </div>
 
           {account && (
             <div className="action-buttons">

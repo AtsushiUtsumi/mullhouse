@@ -4,12 +4,14 @@ import { getHandLabel, freqColor, toggleFreq, RANKS } from '../utils/hands'
 interface HandMatrixProps {
   range: Record<string, number>
   onChange: (hand: string, freq: number) => void
+  onSelectHand?: (hand: string) => void
+  selectedHand?: string | null
   hue?: number
   label?: string
   readOnly?: boolean
 }
 
-export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false }: HandMatrixProps) {
+export function HandMatrix({ range, onChange, onSelectHand, selectedHand, hue = 145, label, readOnly = false }: HandMatrixProps) {
   const draggingRef = useRef(false)
   const dragValueRef = useRef(0)
   const visitedRef = useRef<Set<string>>(new Set())
@@ -30,6 +32,7 @@ export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false
   }
 
   const handleMouseDown = (hand: string) => {
+    onSelectHand?.(hand)
     if (readOnly) return
     const current = range[hand] ?? 0
     const value = toggleFreq(current)
@@ -69,7 +72,7 @@ export function HandMatrix({ range, onChange, hue = 145, label, readOnly = false
                 <button
                   key={hand}
                   type="button"
-                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''}`}
+                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''} ${selectedHand === hand ? 'selected' : ''}`}
                   style={{ backgroundColor: freqColor(freq, hue) }}
                   onMouseDown={() => handleMouseDown(hand)}
                   onMouseEnter={() => handleMouseEnter(hand)}
