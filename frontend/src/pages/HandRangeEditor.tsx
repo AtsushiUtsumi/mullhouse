@@ -1,29 +1,62 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HandMatrix } from '../components/HandMatrix'
 import { SuitComboEditor } from '../components/SuitComboEditor'
+import { HandCategoryFilter } from '../components/HandCategoryFilter'
+import { PlayingCard } from '../components/PlayingCard'
 import { listHandRanges, loadAccount, saveHandRange } from '../api'
 import type { SavedHandRange } from '../types'
-import { getCombosForHand } from '../utils/hands'
+import { comboBlockedByBoard, filterRangeByCategory, getCombosForHand, parseBoardCards } from '../utils/hands'
 
 function comboCount(data: Record<string, number>): number {
   return Object.values(data).reduce((sum, f) => sum + (f > 0 ? f : 0), 0)
 }
 
 // ハンド単位のレンジを、各ハンドの全スートコンボへ展開する（コンボ別頻度の初期値として利用）。
-function expandRangeToCombos(range: Record<string, number>): Record<string, number> {
+// ボードと重複するコンボは展開しない。
+function expandRangeToCombos(range: Record<string, number>, boardCards: string[]): Record<string, number> {
   const combos: Record<string, number> = {}
   for (const [hand, freq] of Object.entries(range)) {
     if (freq <= 0) continue
-    for (const c of getCombosForHand(hand)) combos[c] = freq
+    for (const c of getCombosForHand(hand)) {
+      if (!comboBlockedByBoard(c, boardCards)) combos[c] = freq
+    }
   }
   return combos
+}
+
+// ボードと重複するコンボ/完全にブロックされたハンドを取り除く
+function pruneBlockedCombos(comboRange: Record<string, number>, boardCards: string[]): Record<string, number> {
+  const next = { ...comboRange }
+  let changed = false
+  for (const combo of Object.keys(comboRange)) {
+    if (comboBlockedByBoard(combo, boardCards)) {
+      delete next[combo]
+      changed = true
+    }
+  }
+  return changed ? next : comboRange
+}
+
+function pruneFullyBlockedHands(range: Record<string, number>, boardCards: string[]): Record<string, number> {
+  const next = { ...range }
+  let changed = false
+  for (const hand of Object.keys(range)) {
+    if (getCombosForHand(hand).every((c) => comboBlockedByBoard(c, boardCards))) {
+      delete next[hand]
+      changed = true
+    }
+  }
+  return changed ? next : range
 }
 
 export function HandRangeEditor() {
   const [range, setRange] = useState<Record<string, number>>({})
   const [comboRange, setComboRange] = useState<Record<string, number>>({})
   const [selectedHand, setSelectedHand] = useState<string | null>(null)
+  const [baseRange, setBaseRange] = useState<Record<string, number> | null>(null)
+  const [baseComboRange, setBaseComboRange] = useState<Record<string, number>>({})
+  const [boardInput, setBoardInput] = useState('')
   const [title, setTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -31,6 +64,24 @@ export function HandRangeEditor() {
   const [loadingSaved, setLoadingSaved] = useState(false)
 
   const account = loadAccount()
+
+  const boardInputTrimmed = boardInput.trim()
+  const parsedBoard = useMemo(() => parseBoardCards(boardInputTrimmed), [boardInputTrimmed])
+  const boardValid = parsedBoard !== null
+  const boardCards = useMemo(() => parsedBoard ?? [], [parsedBoard])
+
+  // ボードが変わったら、既に選択済みのコンボ/ハンド（ベースレンジ含む）のうちボードと重複するものを取り除く
+  useEffect(() => {
+    if (boardCards.length === 0) return
+    setComboRange((prev) => pruneBlockedCombos(prev, boardCards))
+    setRange((prev) => pruneFullyBlockedHands(prev, boardCards))
+    setBaseComboRange((prev) => pruneBlockedCombos(prev, boardCards))
+    setBaseRange((prev) => (prev ? pruneFullyBlockedHands(prev, boardCards) : prev))
+    if (selectedHand && getCombosForHand(selectedHand).every((c) => comboBlockedByBoard(c, boardCards))) {
+      setSelectedHand(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardCards])
 
   // ハンド単位の頻度だけを更新する（range のみ変更、コンボ別の内訳には触れない）
   const setHandFreq = (hand: string, freq: number) => {
@@ -42,12 +93,14 @@ export function HandRangeEditor() {
     })
   }
 
-  // マス全体をクリックした場合: そのハンドの全スートを同じ頻度に揃えて選択/解除する
+  // マス全体をクリックした場合: そのハンドの全スート(ボードと重複しないもの)を同じ頻度に揃えて選択/解除する
   const handleHandChange = (hand: string, freq: number) => {
+    const combos = getCombosForHand(hand).filter((c) => !comboBlockedByBoard(c, boardCards))
+    if (combos.length === 0) return
     setHandFreq(hand, freq)
     setComboRange((prev) => {
       const next = { ...prev }
-      for (const c of getCombosForHand(hand)) {
+      for (const c of combos) {
         if (freq <= 0) delete next[c]
         else next[c] = freq
       }
@@ -57,7 +110,8 @@ export function HandRangeEditor() {
 
   // スート別エディタで個別コンボを編集した場合: そのコンボだけ変更し、ハンド頻度は平均値に更新する
   const handleComboChange = (hand: string, combo: string, freq: number) => {
-    const combos = getCombosForHand(hand)
+    if (comboBlockedByBoard(combo, boardCards)) return
+    const combos = getCombosForHand(hand).filter((c) => !comboBlockedByBoard(c, boardCards))
     const baseFreq = range[hand] ?? 0
     const updated: Record<string, number> = {}
     for (const c of combos) {
@@ -73,6 +127,37 @@ export function HandRangeEditor() {
     setRange({})
     setComboRange({})
     setSelectedHand(null)
+  }
+
+  // 現在の選択内容を「ベースレンジ」として保存する（役フィルターの対象範囲になる）
+  const setCurrentAsBase = () => {
+    setBaseRange({ ...range })
+    setBaseComboRange({ ...comboRange })
+    setMessage(`現在のレンジ（${Object.keys(range).length}ハンド）をベースに設定しました`)
+  }
+
+  const restoreBase = () => {
+    if (!baseRange) return
+    setRange(pruneFullyBlockedHands(baseRange, boardCards))
+    setComboRange(pruneBlockedCombos(baseComboRange, boardCards))
+    setSelectedHand(null)
+  }
+
+  const clearBase = () => {
+    setBaseRange(null)
+    setBaseComboRange({})
+  }
+
+  // 「ワンペア以上」等のボタン: ベースレンジ（未設定なら全ハンド）を、ボード上で指定役以上になる
+  // コンボだけに絞り込み、現在のレンジを置き換える
+  const applyCategoryFilter = (minCategory: number, label: string) => {
+    const base = baseRange ? { range: baseRange, comboRange: baseComboRange } : null
+    const { range: newRange, comboRange: newComboRange } = filterRangeByCategory(base, boardCards, minCategory)
+    setRange(newRange)
+    setComboRange(newComboRange)
+    setSelectedHand(null)
+    const handCount = Object.keys(newRange).length
+    setMessage(handCount > 0 ? `${label}のハンドを選択しました（${handCount}ハンド）` : `${label}に該当するハンドがありませんでした`)
   }
 
   const handleSave = async () => {
@@ -108,11 +193,15 @@ export function HandRangeEditor() {
   }
 
   const handleLoad = (item: SavedHandRange) => {
+    const loadedCombos = expandRangeToCombos(item.data, boardCards)
     setRange(item.data)
-    setComboRange(expandRangeToCombos(item.data))
+    setComboRange(loadedCombos)
+    // 読み込んだレンジは同時にベースレンジとしても設定する（役フィルターの対象範囲になる）
+    setBaseRange({ ...item.data })
+    setBaseComboRange({ ...loadedCombos })
     setSelectedHand(null)
     setSavedRanges(null)
-    setMessage('読み込みました')
+    setMessage(`読み込みました（ベースレンジにも設定しました）`)
   }
 
   return (
@@ -126,10 +215,46 @@ export function HandRangeEditor() {
       </header>
 
       <main className="app-main">
+        <section className="panel board-panel">
+          <label className="board-input-label">
+            ボード
+            <input
+              type="text"
+              value={boardInput}
+              onChange={(e) => setBoardInput(e.target.value)}
+              placeholder="As5dTc（0〜5枚、未入力可）"
+              maxLength={10}
+            />
+          </label>
+          {!boardValid && boardInput.trim().length > 0 && (
+            <p className="hint error">カード形式が不正です（例: As5dTc6h8c）。重複するカードも指定できません。</p>
+          )}
+          {boardValid && boardCards.length > 0 && (
+            <div className="board-cards-row">
+              {boardCards.map((c) => (
+                <PlayingCard key={c} card={c} />
+              ))}
+            </div>
+          )}
+          {boardCards.length > 0 && <p className="hint">ボードのカードを含むコンボはレンジで選択できません。</p>}
+        </section>
+
         <section className="panel matrix-panel">
           <div className="matrix-actions">
             <button type="button" className="btn" onClick={clearRange}>クリア</button>
+            <button type="button" className="btn" onClick={setCurrentAsBase}>このレンジをベースに設定</button>
+            {baseRange && (
+              <>
+                <button type="button" className="btn" onClick={restoreBase}>ベースに戻す</button>
+                <button type="button" className="btn" onClick={clearBase}>ベース解除</button>
+              </>
+            )}
           </div>
+          {baseRange && (
+            <p className="hint">
+              ベースレンジ設定済み: {Object.keys(baseRange).length}ハンド。役フィルターはこの範囲内から絞り込みます。
+            </p>
+          )}
           <div className="matrix-with-suit-editor">
             <div>
               <HandMatrix
@@ -137,16 +262,23 @@ export function HandRangeEditor() {
                 onChange={handleHandChange}
                 onSelectHand={setSelectedHand}
                 selectedHand={selectedHand}
+                boardCards={boardCards}
                 label="ハンドレンジ"
               />
               <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
             </div>
+            <HandCategoryFilter
+              boardReady={boardCards.length >= 3}
+              baseHandCount={baseRange ? Object.keys(baseRange).length : null}
+              onSelect={applyCategoryFilter}
+            />
             {selectedHand && (
               <SuitComboEditor
                 hand={selectedHand}
                 comboRange={comboRange}
                 onChange={(combo, freq) => handleComboChange(selectedHand, combo, freq)}
                 onClose={() => setSelectedHand(null)}
+                boardCards={boardCards}
               />
             )}
           </div>

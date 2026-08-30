@@ -1,15 +1,16 @@
 import { Fragment } from 'react'
-import { SUITS, SUIT_SYMBOLS, comboKey, freqColor, isValidCombo, toggleFreq } from '../utils/hands'
+import { SUITS, SUIT_SYMBOLS, comboBlockedByBoard, comboKey, freqColor, isValidCombo, toggleFreq } from '../utils/hands'
 
 interface SuitComboEditorProps {
   hand: string
   comboRange: Record<string, number>
   onChange: (combo: string, freq: number) => void
   onClose?: () => void
+  boardCards?: string[]
   hue?: number
 }
 
-export function SuitComboEditor({ hand, comboRange, onChange, onClose, hue = 145 }: SuitComboEditorProps) {
+export function SuitComboEditor({ hand, comboRange, onChange, onClose, boardCards = [], hue = 145 }: SuitComboEditorProps) {
   const r1 = hand[0]
   const r2 = hand[1]
 
@@ -40,6 +41,18 @@ export function SuitComboEditor({ hand, comboRange, onChange, onClose, hue = 145
                 return <div key={`${s1}-${s2}`} className="suit-combo-cell disabled" />
               }
               const combo = comboKey(hand, s1, s2)
+              const blocked = comboBlockedByBoard(combo, boardCards)
+              if (blocked) {
+                return (
+                  <div
+                    key={`${s1}-${s2}`}
+                    className="suit-combo-cell blocked"
+                    title={`${combo}: ボードのカードと重複するため選択不可`}
+                  >
+                    ×
+                  </div>
+                )
+              }
               const freq = comboRange[combo] ?? 0
               return (
                 <button

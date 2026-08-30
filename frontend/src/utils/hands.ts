@@ -12,6 +12,17 @@ export function getHandLabel(row: number, col: number): string {
   return `${r2}${r1}o`
 }
 
+// 13x13マトリクスに現れる169種類のハンドラベルを全て列挙したもの。
+export const ALL_HANDS: string[] = (() => {
+  const list: string[] = []
+  for (let row = 0; row < RANKS.length; row++) {
+    for (let col = 0; col < RANKS.length; col++) {
+      list.push(getHandLabel(row, col))
+    }
+  }
+  return list
+})()
+
 export function lineToFilename(line: string[]): string {
   return line.join('_') + '.json'
 }
@@ -104,6 +115,197 @@ export function getCombosForHand(hand: string): string[] {
     }
   }
   return combos
+}
+
+// ボードとの重複判定 -----------------------------------------------------
+// ボード入力欄のテキスト（例: "As5dTc"）を正規化済みカード配列（例: ["As","5d","Tc"]、
+// ランク大文字・スート小文字）へ変換する。構文が不正、重複カード、6枚超の場合は null。
+export function parseBoardCards(board: string): string[] | null {
+  if (board.length === 0) return []
+  if (board.length % 2 !== 0) return null
+  const cardRe = /^[2-9TJQKA][cdhs]$/i
+  const cards: string[] = []
+  for (let i = 0; i < board.length; i += 2) {
+    const token = board.slice(i, i + 2)
+    if (!cardRe.test(token)) return null
+    cards.push(`${token[0].toUpperCase()}${token[1].toLowerCase()}`)
+  }
+  if (cards.length > 5) return null
+  if (new Set(cards).size !== cards.length) return null
+  return cards
+}
+
+// コンボ（例: "AsKh"）がボードのいずれかのカードと重複しているか。
+export function comboBlockedByBoard(combo: string, boardCards: string[]): boolean {
+  if (boardCards.length === 0) return false
+  const card1 = combo.slice(0, 2)
+  const card2 = combo.slice(2, 4)
+  return boardCards.includes(card1) || boardCards.includes(card2)
+}
+
+// ハンドの全コンボがボードと重複していて、1つも選択できない状態か。
+export function isHandFullyBlocked(hand: string, boardCards: string[]): boolean {
+  if (boardCards.length === 0) return false
+  const combos = getCombosForHand(hand)
+  return combos.every((c) => comboBlockedByBoard(c, boardCards))
+}
+
+// 役判定 -----------------------------------------------------------------
+// backend/hand_eval.py の分類（0=ハイカード 〜 8=ストレートフラッシュ）と揃えている。
+
+export const HAND_CATEGORY_LABELS = [
+  'ハイカード',
+  'ワンペア',
+  'ツーペア',
+  'スリーカード',
+  'ストレート',
+  'フラッシュ',
+  'フルハウス',
+  'フォーカード',
+  'ストレートフラッシュ',
+] as const
+
+const RANK_VALUE: Record<string, number> = {
+  '2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
+  '9': 7, T: 8, J: 9, Q: 10, K: 11, A: 12,
+}
+
+function cardRankValue(card: string): number {
+  return RANK_VALUE[card[0].toUpperCase()]
+}
+
+function cardSuitChar(card: string): string {
+  return card[1].toLowerCase()
+}
+
+function combinations5(cards: string[]): string[][] {
+  const result: string[][] = []
+  const combo: string[] = []
+  const helper = (start: number) => {
+    if (combo.length === 5) {
+      result.push([...combo])
+      return
+    }
+    for (let i = start; i < cards.length; i++) {
+      combo.push(cards[i])
+      helper(i + 1)
+      combo.pop()
+    }
+  }
+  helper(0)
+  return result
+}
+
+type HandScore = [category: number, tiebreakers: number[]]
+
+function compareScores(a: HandScore, b: HandScore): number {
+  if (a[0] !== b[0]) return a[0] - b[0]
+  for (let i = 0; i < a[1].length; i++) {
+    if (a[1][i] !== b[1][i]) return a[1][i] - b[1][i]
+  }
+  return 0
+}
+
+function evaluateFive(cards: string[]): HandScore {
+  const ranks = cards.map(cardRankValue).sort((a, b) => b - a)
+  const suits = cards.map(cardSuitChar)
+  const isFlush = new Set(suits).size === 1
+
+  const uniqueRanks = Array.from(new Set(ranks)).sort((a, b) => b - a)
+  const rankCounts = new Map<number, number>()
+  for (const r of ranks) rankCounts.set(r, (rankCounts.get(r) ?? 0) + 1)
+  const countsSorted = Array.from(rankCounts.entries()).sort((a, b) => b[1] - a[1] || b[0] - a[0])
+
+  let isStraight = false
+  let straightHigh = ranks[0]
+  if (uniqueRanks.length === 5) {
+    if (uniqueRanks[0] - uniqueRanks[4] === 4) {
+      isStraight = true
+      straightHigh = uniqueRanks[0]
+    } else if (uniqueRanks[0] === 12 && uniqueRanks[1] === 3 && uniqueRanks[4] === 0) {
+      // A-5 の特殊ストレート（ホイール）
+      isStraight = true
+      straightHigh = 3
+    }
+  }
+
+  if (isStraight && isFlush) return [8, [straightHigh]]
+  if (countsSorted[0][1] === 4) {
+    const quad = countsSorted[0][0]
+    const kicker = countsSorted[1][0]
+    return [7, [quad, kicker]]
+  }
+  if (countsSorted[0][1] === 3 && countsSorted[1][1] === 2) {
+    return [6, [countsSorted[0][0], countsSorted[1][0]]]
+  }
+  if (isFlush) return [5, ranks]
+  if (isStraight) return [4, [straightHigh]]
+  if (countsSorted[0][1] === 3) {
+    const kickers = ranks.filter((r) => r !== countsSorted[0][0]).slice(0, 2)
+    return [3, [countsSorted[0][0], ...kickers]]
+  }
+  if (countsSorted[0][1] === 2 && countsSorted[1][1] === 2) {
+    const [highPair, lowPair] = [countsSorted[0][0], countsSorted[1][0]].sort((a, b) => b - a)
+    const kicker = ranks.find((r) => r !== highPair && r !== lowPair)!
+    return [2, [highPair, lowPair, kicker]]
+  }
+  if (countsSorted[0][1] === 2) {
+    const pair = countsSorted[0][0]
+    const kickers = ranks.filter((r) => r !== pair)
+    return [1, [pair, ...kickers]]
+  }
+  return [0, ranks]
+}
+
+// hole(2枚) + board(3〜5枚) から最も強い5枚の役を求める。board が3枚未満の場合は評価できない。
+export function evaluateBestHand(hole: [string, string], board: string[]): HandScore {
+  const allCards = [...hole, ...board]
+  let best: HandScore | null = null
+  for (const combo of combinations5(allCards)) {
+    const score = evaluateFive(combo)
+    if (best === null || compareScores(score, best) > 0) best = score
+  }
+  return best!
+}
+
+export interface RangeSnapshot {
+  range: Record<string, number>
+  comboRange: Record<string, number>
+}
+
+// ボード（3枚以上）に対して、指定カテゴリ以上の役になるコンボのみを含むレンジを組み立てる。
+// base を指定すると、その範囲内（ベースレンジ）のハンド/コンボだけを対象に絞り込む
+// （ベース内での頻度も維持する）。base が null の場合は全169ハンドが対象になる。
+// 結果は既存の選択内容を置き換える形で使う想定。
+export function filterRangeByCategory(
+  base: RangeSnapshot | null,
+  boardCards: string[],
+  minCategory: number
+): RangeSnapshot {
+  const range: Record<string, number> = {}
+  const comboRange: Record<string, number> = {}
+  if (boardCards.length < 3) return { range, comboRange }
+
+  const hands = base ? Object.keys(base.range) : ALL_HANDS
+  for (const hand of hands) {
+    const handBaseFreq = base ? base.range[hand] ?? 0 : 1
+    if (handBaseFreq <= 0) continue
+    const combos = getCombosForHand(hand).filter((c) => !comboBlockedByBoard(c, boardCards))
+    if (combos.length === 0) continue
+    let sum = 0
+    for (const combo of combos) {
+      const comboBaseFreq = base ? base.comboRange[combo] ?? handBaseFreq : 1
+      if (comboBaseFreq <= 0) continue
+      const hole: [string, string] = [combo.slice(0, 2), combo.slice(2, 4)]
+      const [category] = evaluateBestHand(hole, boardCards)
+      if (category >= minCategory) {
+        comboRange[combo] = comboBaseFreq
+        sum += comboBaseFreq
+      }
+    }
+    if (sum > 0) range[hand] = sum / combos.length
+  }
+  return { range, comboRange }
 }
 
 export function freqColor(freq: number, baseHue: number): string {

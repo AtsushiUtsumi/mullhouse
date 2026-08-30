@@ -1,17 +1,27 @@
 import { Fragment, useEffect, useRef } from 'react'
-import { getHandLabel, freqColor, toggleFreq, RANKS } from '../utils/hands'
+import { getHandLabel, freqColor, isHandFullyBlocked, toggleFreq, RANKS } from '../utils/hands'
 
 interface HandMatrixProps {
   range: Record<string, number>
   onChange: (hand: string, freq: number) => void
   onSelectHand?: (hand: string) => void
   selectedHand?: string | null
+  boardCards?: string[]
   hue?: number
   label?: string
   readOnly?: boolean
 }
 
-export function HandMatrix({ range, onChange, onSelectHand, selectedHand, hue = 145, label, readOnly = false }: HandMatrixProps) {
+export function HandMatrix({
+  range,
+  onChange,
+  onSelectHand,
+  selectedHand,
+  boardCards = [],
+  hue = 145,
+  label,
+  readOnly = false,
+}: HandMatrixProps) {
   const draggingRef = useRef(false)
   const dragValueRef = useRef(0)
   const visitedRef = useRef<Set<string>>(new Set())
@@ -32,6 +42,7 @@ export function HandMatrix({ range, onChange, onSelectHand, selectedHand, hue = 
   }
 
   const handleMouseDown = (hand: string) => {
+    if (isHandFullyBlocked(hand, boardCards)) return
     onSelectHand?.(hand)
     if (readOnly) return
     const current = range[hand] ?? 0
@@ -43,6 +54,7 @@ export function HandMatrix({ range, onChange, onSelectHand, selectedHand, hue = 
 
   const handleMouseEnter = (hand: string) => {
     if (readOnly || !draggingRef.current) return
+    if (isHandFullyBlocked(hand, boardCards)) return
     applyToHand(hand, dragValueRef.current)
   }
 
@@ -68,16 +80,18 @@ export function HandMatrix({ range, onChange, onSelectHand, selectedHand, hue = 
               const freq = range[hand] ?? 0
               const isPair = row === col
               const isSuited = row < col
+              const blocked = isHandFullyBlocked(hand, boardCards)
               return (
                 <button
                   key={hand}
                   type="button"
-                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''} ${selectedHand === hand ? 'selected' : ''}`}
-                  style={{ backgroundColor: freqColor(freq, hue) }}
+                  disabled={blocked}
+                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''} ${selectedHand === hand ? 'selected' : ''} ${blocked ? 'blocked' : ''}`}
+                  style={{ backgroundColor: blocked ? undefined : freqColor(freq, hue) }}
                   onMouseDown={() => handleMouseDown(hand)}
                   onMouseEnter={() => handleMouseEnter(hand)}
                   onDragStart={(e) => e.preventDefault()}
-                  title={`${hand}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`}
+                  title={blocked ? `${hand}: ボードのカードと重複するため選択不可` : `${hand}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`}
                 >
                   <span className="cell-hand">{hand}</span>
                   {freq > 0 && freq < 1 && <span className="cell-freq">{Math.round(freq * 100)}</span>}

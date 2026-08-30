@@ -377,6 +377,7 @@ input:focus, select:focus {
   display: flex;
   gap: 0.5rem;
   margin-left: auto;
+  flex-wrap: wrap;
 }
 
 .hint {
@@ -515,6 +516,23 @@ input:focus, select:focus {
   box-shadow: 0 0 0 1px var(--gold);
 }
 
+.matrix-cell.blocked {
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--surface2),
+    var(--surface2) 4px,
+    var(--border) 4px,
+    var(--border) 5px
+  );
+  opacity: 0.5;
+}
+
+.matrix-cell.blocked:hover {
+  transform: none;
+  border-color: var(--border);
+}
+
 .cell-hand {
   font-size: 0.68rem;
   font-family: var(--mono);
@@ -538,11 +556,54 @@ input:focus, select:focus {
   color: var(--text-muted);
 }
 
+.board-panel .board-input-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 16rem;
+}
+
+.board-panel .board-cards-row {
+  margin-top: 0.75rem;
+}
+
+.hint.error {
+  color: var(--villain);
+}
+
 .matrix-with-suit-editor {
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
   align-items: flex-start;
+}
+
+.hand-category-filter {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  min-width: 220px;
+  max-width: 260px;
+}
+
+.hand-category-filter-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 0.75rem;
+}
+
+.hand-category-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hand-category-buttons .btn {
+  text-align: left;
 }
 
 .suit-combo-editor {
@@ -627,6 +688,19 @@ input:focus, select:focus {
   background: transparent;
   border-color: transparent;
   cursor: default;
+}
+
+.suit-combo-cell.blocked {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--surface2),
+    var(--surface2) 3px,
+    var(--border) 3px,
+    var(--border) 4px
+  );
+  cursor: not-allowed;
+  color: var(--villain);
+  font-size: 0.9rem;
 }
 
 .suit-combo-cell .cell-freq {
