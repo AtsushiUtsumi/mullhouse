@@ -8,9 +8,19 @@ interface SuitComboEditorProps {
   onClose?: () => void
   boardCards?: string[]
   hue?: number
+  // 指定すると、このレンジに含まれない（頻度0の）コンボは選択不可になる
+  baseComboRange?: Record<string, number> | null
 }
 
-export function SuitComboEditor({ hand, comboRange, onChange, onClose, boardCards = [], hue = 145 }: SuitComboEditorProps) {
+export function SuitComboEditor({
+  hand,
+  comboRange,
+  onChange,
+  onClose,
+  boardCards = [],
+  hue = 145,
+  baseComboRange = null,
+}: SuitComboEditorProps) {
   const r1 = hand[0]
   const r2 = hand[1]
 
@@ -51,6 +61,16 @@ export function SuitComboEditor({ hand, comboRange, onChange, onClose, boardCard
                   >
                     ×
                   </div>
+                )
+              }
+              const notInBase = baseComboRange != null && (baseComboRange[combo] ?? 0) <= 0
+              if (notInBase) {
+                return (
+                  <div
+                    key={`${s1}-${s2}`}
+                    className="suit-combo-cell not-in-base"
+                    title={`${combo}: ベースレンジに含まれないため選択不可`}
+                  />
                 )
               }
               const freq = comboRange[combo] ?? 0

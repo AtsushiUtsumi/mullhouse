@@ -332,6 +332,7 @@ export function HandRangeEditor() {
                 onSelectHand={setSelectedHand}
                 selectedHand={selectedHand}
                 boardCards={boardCards}
+                baseRange={baseRange}
                 label="ハンドレンジ"
               />
               <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
@@ -348,6 +349,7 @@ export function HandRangeEditor() {
                 onChange={(combo, freq) => handleComboChange(selectedHand, combo, freq)}
                 onClose={() => setSelectedHand(null)}
                 boardCards={boardCards}
+                baseComboRange={baseRange ? baseComboRange : null}
               />
             )}
           </div>

@@ -10,6 +10,8 @@ interface HandMatrixProps {
   hue?: number
   label?: string
   readOnly?: boolean
+  // 指定すると、このレンジに含まれない（頻度0の）ハンドは選択不可になる
+  baseRange?: Record<string, number> | null
 }
 
 export function HandMatrix({
@@ -21,6 +23,7 @@ export function HandMatrix({
   hue = 145,
   label,
   readOnly = false,
+  baseRange = null,
 }: HandMatrixProps) {
   const draggingRef = useRef(false)
   const dragValueRef = useRef(0)
@@ -41,8 +44,10 @@ export function HandMatrix({
     onChange(hand, value)
   }
 
+  const isNotInBase = (hand: string) => baseRange != null && (baseRange[hand] ?? 0) <= 0
+
   const handleMouseDown = (hand: string) => {
-    if (isHandFullyBlocked(hand, boardCards)) return
+    if (isHandFullyBlocked(hand, boardCards) || isNotInBase(hand)) return
     onSelectHand?.(hand)
     if (readOnly) return
     const current = range[hand] ?? 0
@@ -54,7 +59,7 @@ export function HandMatrix({
 
   const handleMouseEnter = (hand: string) => {
     if (readOnly || !draggingRef.current) return
-    if (isHandFullyBlocked(hand, boardCards)) return
+    if (isHandFullyBlocked(hand, boardCards) || isNotInBase(hand)) return
     applyToHand(hand, dragValueRef.current)
   }
 
@@ -81,17 +86,24 @@ export function HandMatrix({
               const isPair = row === col
               const isSuited = row < col
               const blocked = isHandFullyBlocked(hand, boardCards)
+              const notInBase = !blocked && isNotInBase(hand)
+              const disabled = blocked || notInBase
+              const title = blocked
+                ? `${hand}: ボードのカードと重複するため選択不可`
+                : notInBase
+                  ? `${hand}: ベースレンジに含まれないため選択不可`
+                  : `${hand}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`
               return (
                 <button
                   key={hand}
                   type="button"
-                  disabled={blocked}
-                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''} ${selectedHand === hand ? 'selected' : ''} ${blocked ? 'blocked' : ''}`}
-                  style={{ backgroundColor: blocked ? undefined : freqColor(freq, hue) }}
+                  disabled={disabled}
+                  className={`matrix-cell ${isPair ? 'pair' : isSuited ? 'suited' : 'offsuit'} ${freq > 0 ? 'active' : ''} ${selectedHand === hand ? 'selected' : ''} ${blocked ? 'blocked' : ''} ${notInBase ? 'not-in-base' : ''}`}
+                  style={{ backgroundColor: disabled ? undefined : freqColor(freq, hue) }}
                   onMouseDown={() => handleMouseDown(hand)}
                   onMouseEnter={() => handleMouseEnter(hand)}
                   onDragStart={(e) => e.preventDefault()}
-                  title={blocked ? `${hand}: ボードのカードと重複するため選択不可` : `${hand}: ${freq > 0 ? `${Math.round(freq * 100)}%` : '未選択'}`}
+                  title={title}
                 >
                   <span className="cell-hand">{hand}</span>
                   {freq > 0 && freq < 1 && <span className="cell-freq">{Math.round(freq * 100)}</span>}

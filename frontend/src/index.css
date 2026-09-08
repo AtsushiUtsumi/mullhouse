@@ -533,6 +533,17 @@ input:focus, select:focus {
   border-color: var(--border);
 }
 
+.matrix-cell.not-in-base {
+  cursor: not-allowed;
+  background: var(--surface2);
+  opacity: 0.35;
+}
+
+.matrix-cell.not-in-base:hover {
+  transform: none;
+  border-color: var(--border);
+}
+
 .cell-hand {
   font-size: 0.68rem;
   font-family: var(--mono);
@@ -701,6 +712,12 @@ input:focus, select:focus {
   cursor: not-allowed;
   color: var(--villain);
   font-size: 0.9rem;
+}
+
+.suit-combo-cell.not-in-base {
+  background: var(--surface2);
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .suit-combo-cell .cell-freq {
