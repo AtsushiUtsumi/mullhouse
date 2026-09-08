@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HandMatrix } from '../components/HandMatrix'
 import { SuitComboEditor } from '../components/SuitComboEditor'
@@ -62,6 +62,7 @@ export function HandRangeEditor() {
   const [message, setMessage] = useState('')
   const [savedRanges, setSavedRanges] = useState<SavedHandRange[] | null>(null)
   const [loadingSaved, setLoadingSaved] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const account = loadAccount()
 
@@ -192,6 +193,58 @@ export function HandRangeEditor() {
     }
   }
 
+  // 現在のレンジ（ハンド/コンボ/ボード/タイトル）をJSONファイルとしてダウンロードする
+  const handleExportJson = () => {
+    const payload = { title, board: boardInputTrimmed, range, comboRange }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const safeName = (title || 'hand-range').trim().replace(/[\\/:*?"<>|]/g, '_') || 'hand-range'
+    a.href = url
+    a.download = `${safeName}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setMessage('JSONファイルをエクスポートしました')
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  // JSONファイルを読み込んでレンジ/コンボ/ボードを復元する（ベースレンジにも設定する）
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 同じファイルを続けて選び直せるようにする
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      if (!parsed || typeof parsed !== 'object' || typeof parsed.range !== 'object' || parsed.range === null) {
+        throw new Error('range が見つかりません')
+      }
+      const importedRange: Record<string, number> = parsed.range
+      const importedBoardInput = typeof parsed.board === 'string' ? parsed.board : ''
+      const importedBoardCards = parseBoardCards(importedBoardInput.trim()) ?? []
+      const importedCombos: Record<string, number> =
+        parsed.comboRange && typeof parsed.comboRange === 'object'
+          ? parsed.comboRange
+          : expandRangeToCombos(importedRange, importedBoardCards)
+
+      setBoardInput(importedBoardInput)
+      setRange(importedRange)
+      setComboRange(importedCombos)
+      setBaseRange({ ...importedRange })
+      setBaseComboRange({ ...importedCombos })
+      setSelectedHand(null)
+      if (typeof parsed.title === 'string') setTitle(parsed.title)
+      setMessage('JSONファイルをインポートしました（ベースレンジにも設定しました）')
+    } catch (err) {
+      setMessage(`インポートに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   const handleLoad = (item: SavedHandRange) => {
     const loadedCombos = expandRangeToCombos(item.data, boardCards)
     setRange(item.data)
@@ -249,6 +302,15 @@ export function HandRangeEditor() {
                 <button type="button" className="btn" onClick={clearBase}>ベース解除</button>
               </>
             )}
+            <button type="button" className="btn" onClick={handleExportJson}>JSONエクスポート</button>
+            <button type="button" className="btn" onClick={handleImportClick}>JSONインポート</button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              style={{ display: 'none' }}
+            />
           </div>
           {baseRange && (
             <p className="hint">
