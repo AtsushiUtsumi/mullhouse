@@ -66,6 +66,11 @@ export function HandRangeEditor() {
 
   const account = loadAccount()
 
+  // ベースレンジ（コンボ単位の合計）に対して、現在の選択がどれだけの割合を占めるか
+  const baseComboTotal = useMemo(() => comboCount(baseComboRange), [baseComboRange])
+  const selectedComboTotal = useMemo(() => comboCount(comboRange), [comboRange])
+  const baseSelectedPercent = baseRange && baseComboTotal > 0 ? (selectedComboTotal / baseComboTotal) * 100 : null
+
   const boardInputTrimmed = boardInput.trim()
   const parsedBoard = useMemo(() => parseBoardCards(boardInputTrimmed), [boardInputTrimmed])
   const boardValid = parsedBoard !== null
@@ -315,6 +320,8 @@ export function HandRangeEditor() {
           {baseRange && (
             <p className="hint">
               ベースレンジ設定済み: {Object.keys(baseRange).length}ハンド。役フィルターはこの範囲内から絞り込みます。
+              現在の選択: {selectedComboTotal.toFixed(1)} / {baseComboTotal.toFixed(1)} コンボ
+              {baseSelectedPercent !== null && `（ベースの${baseSelectedPercent.toFixed(1)}%）`}
             </p>
           )}
           <div className="matrix-with-suit-editor">
