@@ -273,6 +273,52 @@ export interface RangeSnapshot {
   comboRange: Record<string, number>
 }
 
+interface BaseComboEntry {
+  hand: string
+  combo: string
+  freq: number
+  // そのハンドが持つ「ボードと重複しない全コンボ数」（baseでの頻度に関わらず一定）。
+  // 役フィルター/上位・下位フィルターで、ハンド単位の頻度を平均する際の分母に使う。
+  totalCombosForHand: number
+}
+
+// base（未指定なら全169ハンド）のうち、ボードと重複せず頻度が0より大きいコンボを列挙する。
+function collectBaseComboEntries(base: RangeSnapshot | null, boardCards: string[]): BaseComboEntry[] {
+  const hands = base ? Object.keys(base.range) : ALL_HANDS
+  const entries: BaseComboEntry[] = []
+  for (const hand of hands) {
+    const handBaseFreq = base ? base.range[hand] ?? 0 : 1
+    if (handBaseFreq <= 0) continue
+    const combos = getCombosForHand(hand).filter((c) => !comboBlockedByBoard(c, boardCards))
+    if (combos.length === 0) continue
+    for (const combo of combos) {
+      const comboBaseFreq = base ? base.comboRange[combo] ?? handBaseFreq : 1
+      if (comboBaseFreq <= 0) continue
+      entries.push({ hand, combo, freq: comboBaseFreq, totalCombosForHand: combos.length })
+    }
+  }
+  return entries
+}
+
+// 選択されたコンボ群から、ハンド単位のレンジ（totalCombosForHandを分母にした平均頻度）を組み立てる。
+function buildRangeFromSelection(
+  selected: { hand: string; combo: string; freq: number; totalCombosForHand: number }[]
+): RangeSnapshot {
+  const range: Record<string, number> = {}
+  const comboRange: Record<string, number> = {}
+  const handSums = new Map<string, { sum: number; total: number }>()
+  for (const { hand, combo, freq, totalCombosForHand } of selected) {
+    comboRange[combo] = freq
+    const entry = handSums.get(hand) ?? { sum: 0, total: totalCombosForHand }
+    entry.sum += freq
+    handSums.set(hand, entry)
+  }
+  for (const [hand, { sum, total }] of handSums) {
+    if (sum > 0) range[hand] = sum / total
+  }
+  return { range, comboRange }
+}
+
 // ボード（3枚以上）に対して、指定カテゴリ以上の役になるコンボのみを含むレンジを組み立てる。
 // base を指定すると、その範囲内（ベースレンジ）のハンド/コンボだけを対象に絞り込む
 // （ベース内での頻度も維持する）。base が null の場合は全169ハンドが対象になる。
@@ -282,30 +328,53 @@ export function filterRangeByCategory(
   boardCards: string[],
   minCategory: number
 ): RangeSnapshot {
-  const range: Record<string, number> = {}
-  const comboRange: Record<string, number> = {}
-  if (boardCards.length < 3) return { range, comboRange }
+  if (boardCards.length < 3) return { range: {}, comboRange: {} }
 
-  const hands = base ? Object.keys(base.range) : ALL_HANDS
-  for (const hand of hands) {
-    const handBaseFreq = base ? base.range[hand] ?? 0 : 1
-    if (handBaseFreq <= 0) continue
-    const combos = getCombosForHand(hand).filter((c) => !comboBlockedByBoard(c, boardCards))
-    if (combos.length === 0) continue
-    let sum = 0
-    for (const combo of combos) {
-      const comboBaseFreq = base ? base.comboRange[combo] ?? handBaseFreq : 1
-      if (comboBaseFreq <= 0) continue
-      const hole: [string, string] = [combo.slice(0, 2), combo.slice(2, 4)]
-      const [category] = evaluateBestHand(hole, boardCards)
-      if (category >= minCategory) {
-        comboRange[combo] = comboBaseFreq
-        sum += comboBaseFreq
-      }
-    }
-    if (sum > 0) range[hand] = sum / combos.length
-  }
-  return { range, comboRange }
+  const selected = collectBaseComboEntries(base, boardCards).filter((entry) => {
+    const hole: [string, string] = [entry.combo.slice(0, 2), entry.combo.slice(2, 4)]
+    const [category] = evaluateBestHand(hole, boardCards)
+    return category >= minCategory
+  })
+  return buildRangeFromSelection(selected)
+}
+
+// ボード（3枚以上）に対して、base（未指定なら全169ハンド）のコンボを役の強さでランク付けし、
+// 上位topCount個と下位bottomCount個の両方（合わせ技）を選択したレンジを組み立てる。
+// 例: topCount=10, bottomCount=5 なら、最も強い10コンボと最も弱い5コンボを選択する。
+// 重なった場合（topCount+bottomCount がコンボ総数を超える等）は重複なく1回だけ選択される。
+export function filterRangeByComboRank(
+  base: RangeSnapshot | null,
+  boardCards: string[],
+  topCount: number,
+  bottomCount: number
+): RangeSnapshot {
+  if (boardCards.length < 3) return { range: {}, comboRange: {} }
+  if (topCount <= 0 && bottomCount <= 0) return { range: {}, comboRange: {} }
+
+  const entries = collectBaseComboEntries(base, boardCards)
+  if (entries.length === 0) return { range: {}, comboRange: {} }
+
+  const scored = entries
+    .map((entry) => ({
+      ...entry,
+      score: evaluateBestHand([entry.combo.slice(0, 2), entry.combo.slice(2, 4)], boardCards),
+    }))
+    .sort((a, b) => compareScores(b.score, a.score)) // 強い順（先頭が最強）
+
+  const topN = Math.min(Math.max(topCount, 0), scored.length)
+  const bottomN = Math.min(Math.max(bottomCount, 0), scored.length)
+  const selectedByCombo = new Map<string, (typeof scored)[number]>()
+  for (const entry of scored.slice(0, topN)) selectedByCombo.set(entry.combo, entry)
+  for (const entry of scored.slice(scored.length - bottomN)) selectedByCombo.set(entry.combo, entry)
+
+  return buildRangeFromSelection(Array.from(selectedByCombo.values()))
+}
+
+// base（未指定なら全169ハンド）のうち、ボードと重複せず頻度が0より大きいコンボの総数。
+// 上位・下位フィルターのスライダーの最大値として使う。
+export function countBaseCombos(base: RangeSnapshot | null, boardCards: string[]): number {
+  if (boardCards.length < 3) return 0
+  return collectBaseComboEntries(base, boardCards).length
 }
 
 export function freqColor(freq: number, baseHue: number): string {

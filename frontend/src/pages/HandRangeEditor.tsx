@@ -3,10 +3,18 @@ import { Link } from 'react-router-dom'
 import { HandMatrix } from '../components/HandMatrix'
 import { SuitComboEditor } from '../components/SuitComboEditor'
 import { HandCategoryFilter } from '../components/HandCategoryFilter'
+import { ComboRankFilter } from '../components/ComboRankFilter'
 import { PlayingCard } from '../components/PlayingCard'
 import { listHandRanges, loadAccount, saveHandRange } from '../api'
 import type { SavedHandRange } from '../types'
-import { comboBlockedByBoard, filterRangeByCategory, getCombosForHand, parseBoardCards } from '../utils/hands'
+import {
+  comboBlockedByBoard,
+  countBaseCombos,
+  filterRangeByCategory,
+  filterRangeByComboRank,
+  getCombosForHand,
+  parseBoardCards,
+} from '../utils/hands'
 
 function comboCount(data: Record<string, number>): number {
   return Object.values(data).reduce((sum, f) => sum + (f > 0 ? f : 0), 0)
@@ -70,11 +78,17 @@ export function HandRangeEditor() {
   const baseComboTotal = useMemo(() => comboCount(baseComboRange), [baseComboRange])
   const selectedComboTotal = useMemo(() => comboCount(comboRange), [comboRange])
   const baseSelectedPercent = baseRange && baseComboTotal > 0 ? (selectedComboTotal / baseComboTotal) * 100 : null
+  const baseSnapshot = useMemo(
+    () => (baseRange ? { range: baseRange, comboRange: baseComboRange } : null),
+    [baseRange, baseComboRange]
+  )
 
   const boardInputTrimmed = boardInput.trim()
   const parsedBoard = useMemo(() => parseBoardCards(boardInputTrimmed), [boardInputTrimmed])
   const boardValid = parsedBoard !== null
   const boardCards = useMemo(() => parsedBoard ?? [], [parsedBoard])
+  // 上位/下位フィルターのスライダー最大値（ベースレンジのうちボードと重複しないコンボ数）
+  const rankFilterComboTotal = useMemo(() => countBaseCombos(baseSnapshot, boardCards), [baseSnapshot, boardCards])
 
   // ボードが変わったら、既に選択済みのコンボ/ハンド（ベースレンジ含む）のうちボードと重複するものを取り除く
   useEffect(() => {
@@ -164,6 +178,23 @@ export function HandRangeEditor() {
     setSelectedHand(null)
     const handCount = Object.keys(newRange).length
     setMessage(handCount > 0 ? `${label}のハンドを選択しました（${handCount}ハンド）` : `${label}に該当するハンドがありませんでした`)
+  }
+
+  // 「上位N・下位Mコンボを選択」: ベースレンジ（未設定なら全ハンド）のコンボを役の強さでランク付けし、
+  // 上位topCount個と下位bottomCount個を合わせて選択し、現在のレンジを置き換える
+  const applyComboRankFilter = (topCount: number, bottomCount: number) => {
+    const { range: newRange, comboRange: newComboRange } = filterRangeByComboRank(
+      baseSnapshot,
+      boardCards,
+      topCount,
+      bottomCount
+    )
+    setRange(newRange)
+    setComboRange(newComboRange)
+    setSelectedHand(null)
+    const label = `上位${topCount}・下位${bottomCount}コンボ`
+    const handCount = Object.keys(newRange).length
+    setMessage(handCount > 0 ? `${label}を選択しました（${handCount}ハンド）` : `${label}に該当するコンボがありませんでした`)
   }
 
   const handleSave = async () => {
@@ -341,6 +372,11 @@ export function HandRangeEditor() {
               boardReady={boardCards.length >= 3}
               baseHandCount={baseRange ? Object.keys(baseRange).length : null}
               onSelect={applyCategoryFilter}
+            />
+            <ComboRankFilter
+              boardReady={boardCards.length >= 3}
+              baseComboTotal={rankFilterComboTotal}
+              onSelect={applyComboRankFilter}
             />
             {selectedHand && (
               <SuitComboEditor
