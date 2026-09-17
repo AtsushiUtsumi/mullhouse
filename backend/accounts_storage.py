@@ -90,6 +90,12 @@ class AccountStorage:
             return None
         return dict(row)
 
+    def delete_account(self, account_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+            conn.commit()
+        return cur.rowcount > 0
+
     @staticmethod
     def verify_password(password: str, stored_hash: str) -> bool:
         algorithm, iterations, salt_hex, hash_hex = stored_hash.split("$")

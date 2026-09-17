@@ -54,3 +54,25 @@ def get_account(account_id: str) -> AccountResponse:
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return AccountResponse(id=account["id"], username=account["username"], coins=account["coins"])
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+@router.delete("/accounts/{account_id}", status_code=204)
+def delete_account(account_id: str, req: DeleteAccountRequest) -> None:
+    account = account_storage.get_account_by_id(account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if not AccountStorage.verify_password(req.password, account["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+    # Deferred imports to avoid a module-load-time circular import
+    # (hand_ranges_api -> accounts_api).
+    from hand_ranges_api import hand_range_storage
+    from range_storage_sqlite import create_sqlite_range_storage
+
+    range_storage = create_sqlite_range_storage(BASE_DIR, hand_range_storage)
+    range_storage.delete_by_account_id(account_id)
+    account_storage.delete_account(account_id)

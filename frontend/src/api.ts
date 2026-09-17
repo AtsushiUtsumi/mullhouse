@@ -71,6 +71,18 @@ export async function getAccount(id: string): Promise<AccountSummary> {
   return fetchJson(`/accounts/${id}`)
 }
 
+export async function deleteAccount(id: string, password: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/accounts/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || res.statusText)
+  }
+}
+
 const ACCOUNT_STORAGE_KEY = 'mullhouse:account'
 
 export function saveAccount(account: AccountSummary): void {

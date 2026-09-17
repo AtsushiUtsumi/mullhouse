@@ -68,6 +68,11 @@ class HandRangeStorage:
             results.append(item)
         return results
 
+    def delete_by_account_id(self, account_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM hand_ranges WHERE account_id = ?", (account_id,))
+            conn.commit()
+
 
 def create_hand_range_storage(base_dir: Path) -> HandRangeStorage:
     storage = HandRangeStorage(default_db_path(base_dir))

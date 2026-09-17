@@ -137,6 +137,20 @@ class SqliteRangeStorage:
     def source_path(self, position: str, board: str, line: list[str]) -> str:
         return f"{position}/{board}/{line_to_filename(line)}"
 
+    def delete_by_account_id(self, account_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                DELETE FROM range_lines
+                WHERE hand_range_id IN (
+                    SELECT id FROM hand_ranges WHERE account_id = ?
+                )
+                """,
+                (account_id,),
+            )
+            conn.commit()
+        self.hand_range_storage.delete_by_account_id(account_id)
+
 
 def create_sqlite_range_storage(project_dir: Path, hand_range_storage: HandRangeStorage) -> SqliteRangeStorage:
     storage = SqliteRangeStorage(default_db_path(project_dir), hand_range_storage)
