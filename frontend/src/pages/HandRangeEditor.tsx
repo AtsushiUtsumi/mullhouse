@@ -348,13 +348,17 @@ export function HandRangeEditor() {
               style={{ display: 'none' }}
             />
           </div>
-          {baseRange && (
-            <p className="hint">
-              ベースレンジ設定済み: {Object.keys(baseRange).length}ハンド。役フィルターはこの範囲内から絞り込みます。
-              現在の選択: {selectedComboTotal.toFixed(1)} / {baseComboTotal.toFixed(1)} コンボ
-              {baseSelectedPercent !== null && `（ベースの${baseSelectedPercent.toFixed(1)}%）`}
-            </p>
-          )}
+          <p className="hint" style={baseRange ? undefined : { visibility: 'hidden' }}>
+            {baseRange ? (
+              <>
+                ベースレンジ設定済み: {Object.keys(baseRange).length}ハンド。役フィルターはこの範囲内から絞り込みます。
+                現在の選択: {selectedComboTotal.toFixed(1)} / {baseComboTotal.toFixed(1)} コンボ
+                {baseSelectedPercent !== null && `（ベースの${baseSelectedPercent.toFixed(1)}%）`}
+              </>
+            ) : (
+              'ベースレンジ設定済み: 0ハンド。役フィルターはこの範囲内から絞り込みます。現在の選択: 0.0 / 0.0 コンボ（ベースの0.0%）'
+            )}
+          </p>
           <div className="matrix-with-suit-editor">
             <div>
               <HandMatrix
@@ -368,26 +372,27 @@ export function HandRangeEditor() {
               />
               <p className="hint">クリックで選択/解除を切り替え: 0% ⇔ 100%</p>
             </div>
-            <HandCategoryFilter
-              boardReady={boardCards.length >= 3}
-              baseHandCount={baseRange ? Object.keys(baseRange).length : null}
-              onSelect={applyCategoryFilter}
-            />
-            <ComboRankFilter
-              boardReady={boardCards.length >= 3}
-              baseComboTotal={rankFilterComboTotal}
-              onSelect={applyComboRankFilter}
-            />
-            {selectedHand && (
+            <div className="suit-editor-and-filters">
               <SuitComboEditor
                 hand={selectedHand}
                 comboRange={comboRange}
-                onChange={(combo, freq) => handleComboChange(selectedHand, combo, freq)}
-                onClose={() => setSelectedHand(null)}
+                onChange={(combo, freq) => {
+                  if (selectedHand) handleComboChange(selectedHand, combo, freq)
+                }}
                 boardCards={boardCards}
                 baseComboRange={baseRange ? baseComboRange : null}
               />
-            )}
+              <HandCategoryFilter
+                boardReady={boardCards.length >= 3}
+                baseHandCount={baseRange ? Object.keys(baseRange).length : null}
+                onSelect={applyCategoryFilter}
+              />
+              <ComboRankFilter
+                boardReady={boardCards.length >= 3}
+                baseComboTotal={rankFilterComboTotal}
+                onSelect={applyComboRankFilter}
+              />
+            </div>
           </div>
 
           {account && (

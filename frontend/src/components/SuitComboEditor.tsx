@@ -2,10 +2,9 @@ import { Fragment } from 'react'
 import { SUITS, SUIT_SYMBOLS, comboBlockedByBoard, comboKey, freqColor, isValidCombo, toggleFreq } from '../utils/hands'
 
 interface SuitComboEditorProps {
-  hand: string
+  hand: string | null
   comboRange: Record<string, number>
   onChange: (combo: string, freq: number) => void
-  onClose?: () => void
   boardCards?: string[]
   hue?: number
   // 指定すると、このレンジに含まれない（頻度0の）コンボは選択不可になる
@@ -16,38 +15,34 @@ export function SuitComboEditor({
   hand,
   comboRange,
   onChange,
-  onClose,
   boardCards = [],
   hue = 145,
   baseComboRange = null,
 }: SuitComboEditorProps) {
-  const r1 = hand[0]
-  const r2 = hand[1]
+  const r1 = hand ? hand[0] : null
+  const r2 = hand ? hand[1] : null
 
   return (
     <div className="suit-combo-editor">
       <div className="suit-combo-header">
-        <span className="suit-combo-title">{hand} のコンボ</span>
-        {onClose && (
-          <button type="button" className="suit-combo-close" onClick={onClose} aria-label="閉じる">
-            ×
-          </button>
-        )}
+        <span className="suit-combo-title">{hand ? `${hand} のコンボ` : 'コンボ選択'}</span>
       </div>
       <div className="suit-combo-grid">
         <div className="suit-combo-corner" />
         {SUITS.map((s) => (
           <div key={`col-${s}`} className={`suit-combo-axis suit-${s}`}>
-            {r2}{SUIT_SYMBOLS[s]}
+            {r2 ?? ''}
+            {SUIT_SYMBOLS[s]}
           </div>
         ))}
         {SUITS.map((s1) => (
           <Fragment key={`row-${s1}`}>
             <div className={`suit-combo-axis suit-${s1}`}>
-              {r1}{SUIT_SYMBOLS[s1]}
+              {r1 ?? ''}
+              {SUIT_SYMBOLS[s1]}
             </div>
             {SUITS.map((s2) => {
-              if (!isValidCombo(hand, s1, s2)) {
+              if (!hand || !isValidCombo(hand, s1, s2)) {
                 return <div key={`${s1}-${s2}`} className="suit-combo-cell disabled" />
               }
               const combo = comboKey(hand, s1, s2)
@@ -90,7 +85,6 @@ export function SuitComboEditor({
           </Fragment>
         ))}
       </div>
-      <p className="hint">クリックでコンボごとに選択/解除。頻度はハンド全体に平均反映されます。</p>
     </div>
   )
 }
