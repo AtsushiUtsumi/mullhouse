@@ -94,12 +94,18 @@ export function connectTableSocket(
   tableId: string,
   creds: PokerCredentials,
   onMessage: (payload: PokerStatePayload) => void,
+  onClosed?: (reason: string) => void,
 ): WebSocket {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const url = `${protocol}//${location.host}${API_BASE}/tables/${tableId}/ws?player_id=${creds.player_id}&token=${creds.token}`
   const ws = new WebSocket(url)
   ws.onmessage = (ev) => {
-    onMessage(JSON.parse(ev.data))
+    const data = JSON.parse(ev.data)
+    if (data.type === 'table_closed') {
+      onClosed?.(data.reason ?? 'unknown')
+      return
+    }
+    onMessage(data)
   }
   return ws
 }

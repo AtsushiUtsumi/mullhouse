@@ -386,6 +386,100 @@ input:focus, select:focus {
   margin-top: 0.75rem;
 }
 
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-tab {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+}
+
+.admin-tab.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-row {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+}
+
+.admin-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.admin-row-name {
+  font-weight: 600;
+}
+
+.admin-row-coins {
+  margin-left: auto;
+  font-family: var(--mono);
+  color: var(--gold);
+}
+
+.admin-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.admin-badge.admin {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.admin-badge.frozen {
+  background: var(--villain);
+  border-color: var(--villain);
+  color: white;
+}
+
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.admin-reason-input {
+  min-width: 10rem;
+  flex: 1 1 10rem;
+}
+
+.admin-coin-input {
+  width: 7rem;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.75rem;

@@ -168,6 +168,9 @@ async def table_ws(websocket: WebSocket, table_id: str, player_id: str, token: s
     except TableNotFoundError:
         await websocket.close(code=4404)
         return
+    if meta.admin_closed:
+        await websocket.close(code=4404)
+        return
     if meta.tokens.get(player_id) != token:
         await websocket.close(code=4401)
         return

@@ -9,9 +9,8 @@
 ブラウザ
   ↓
 nginx (80番ポート, リバースプロキシ)
-  ├─ /            → frontend (React + Vite, 開発サーバ:5173)
-  ├─ /api         → backend  (FastAPI, 8000番ポート)
-  └─ /admin       → backend
+  ├─ /            → frontend (React + Vite, 開発サーバ:5173) ※ /admin もここ(SPAルート)
+  └─ /api         → backend  (FastAPI, 8000番ポート) ※ /api/admin に管理者APIを含む
 ```
 
 - **backend**: FastAPI製ヘッドレスAPIサーバ。ゲームロジック本体は外部ライブラリ
@@ -76,6 +75,7 @@ nginx (80番ポート, リバースプロキシ)
 | `/` | Home(トップ) |
 | `/range` | RangeApp(レンジ構築・ソルバー) |
 | `/hand-range-editor` | HandRangeEditor |
+| `/admin` | Admin(管理者画面。管理者アカウントでのログインが必要) |
 | `/poker` | PokerLobby(卓一覧・作成) |
 | `/poker/:tableId` | PokerTable(対戦画面) |
 | `/poker/api-docs` | PokerApiDocs(外部ボット向けAPI仕様) |
@@ -89,7 +89,8 @@ nginx (80番ポート, リバースプロキシ)
 |---|---|
 | `main.py` | FastAPIアプリ本体。レンジ関連API・ソルバーAPI・ルーター登録 |
 | `poker_api.py` / `poker_service.py` | 卓管理のREST+WebSocket API、poker_domainとの橋渡し |
-| `accounts_api.py` / `accounts_storage.py` | アカウント作成・ログイン・永続化 |
+| `accounts_api.py` / `accounts_storage.py` | アカウント作成・ログイン・永続化(凍結・管理者フラグ含む) |
+| `admin_api.py` / `admin_storage.py` | 管理者画面用API(ベアラートークン認証)・監査ログ |
 | `hand_ranges_api.py` / `hand_ranges_storage.py` | ハンドレンジ(13×13マトリクス)の保存・一覧 |
 | `range_storage_sqlite.py` / `storage.py` / `storage_db.py` / `storage_fs.py` | レンジ保存バックエンド(SQLite/ファイル)の切り替え |
 | `solver.py` | レンジ評価(EV計算等) |
@@ -111,3 +112,26 @@ nginx (80番ポート, リバースプロキシ)
 ./run.sh   # プロジェクト全体を起動 (Linux)
 ./run.bat  # プロジェクト全体を起動 (Windows)
 ```
+
+## 管理者用画面
+
+フロントエンド `/admin`(`Admin.tsx`)、バックエンド `backend/admin_api.py` + `admin_storage.py`。
+
+- **管理者権限**: `accounts.is_admin` フラグで判定。昇格用のUIはなく、環境変数
+  `ADMIN_USERNAMES`(カンマ区切りのユーザー名)に一致するアカウントが自動的に管理者になる
+  (`accounts_storage.py` がアカウント作成時・起動時に同期)。
+- **認証**: 通常ユーザーのログイン(localStorageにアカウント情報を保持するだけの簡易な方式)とは
+  独立したベアラートークン方式。`POST /api/admin/login` でユーザー名・パスワードを検証し、
+  `is_admin` かつ非凍結の場合のみ `admin_sessions` テーブルにトークンを発行(有効期限12時間)。
+  以後の管理者APIは `Authorization: Bearer <token>` を検証する `require_admin` 依存関数を通す。
+- **できる操作**(`admin_api.py`、いずれも `admin_audit_log` テーブルに操作ログを記録):
+  - ユーザー一覧表示(`GET /api/admin/accounts`。コイン・管理者/凍結フラグ・作成日時・
+    最終ログイン日時を表示)
+  - アカウントの凍結/凍結解除(`POST /api/admin/accounts/{id}/freeze`。凍結中は通常ログイン
+    `POST /api/accounts/login` が403で拒否される。凍結時は該当アカウントの管理者セッションも失効)
+  - アカウントの物理削除(`DELETE /api/admin/accounts/{id}`。保存レンジ等を含めカスケード削除)
+  - コイン調整(`POST /api/admin/accounts/{id}/coins`。差分[delta]を指定、0未満にはならない)
+  - 卓の強制終了(`POST /api/admin/tables/{id}/force-end`。ハンド進行中でも即座に卓を閉じ、
+    接続中のプレイヤーへ `table_closed` メッセージを送ってから切断する)
+  - 操作ログ閲覧(`GET /api/admin/logs`)
+  - 管理者自身のアカウントの凍結・削除は不可(誤操作によるロックアウト防止)

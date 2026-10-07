@@ -24,6 +24,7 @@ class AccountResponse(BaseModel):
     id: str
     username: str
     coins: int
+    is_admin: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -45,7 +46,12 @@ def login(req: LoginRequest) -> AccountResponse:
     account = account_storage.get_account_by_username(req.username)
     if account is None or not AccountStorage.verify_password(req.password, account["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    return AccountResponse(id=account["id"], username=account["username"], coins=account["coins"])
+    if account["is_frozen"]:
+        raise HTTPException(status_code=403, detail="このアカウントは凍結されています")
+    account_storage.record_login(account["id"])
+    return AccountResponse(
+        id=account["id"], username=account["username"], coins=account["coins"], is_admin=account["is_admin"]
+    )
 
 
 @router.get("/accounts/{account_id}", response_model=AccountResponse)
@@ -53,7 +59,9 @@ def get_account(account_id: str) -> AccountResponse:
     account = account_storage.get_account_by_id(account_id)
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
-    return AccountResponse(id=account["id"], username=account["username"], coins=account["coins"])
+    return AccountResponse(
+        id=account["id"], username=account["username"], coins=account["coins"], is_admin=account["is_admin"]
+    )
 
 
 class DeleteAccountRequest(BaseModel):
@@ -76,3 +84,7 @@ def delete_account(account_id: str, req: DeleteAccountRequest) -> None:
     range_storage = create_sqlite_range_storage(BASE_DIR, hand_range_storage)
     range_storage.delete_by_account_id(account_id)
     account_storage.delete_account(account_id)
+
+    from admin_storage import create_admin_session_storage
+
+    create_admin_session_storage(BASE_DIR).delete_sessions_for_account(account_id)

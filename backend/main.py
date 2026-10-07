@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from accounts_api import account_storage
 from accounts_api import router as accounts_router
+from admin_api import router as admin_router
 from hand_ranges_api import router as hand_ranges_router
 from poker_api import router as poker_router
 from solver import solve_range
@@ -33,6 +34,7 @@ app.add_middleware(
 app.include_router(poker_router, prefix="/api/poker")
 app.include_router(accounts_router, prefix="/api")
 app.include_router(hand_ranges_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 class RangeData(BaseModel):

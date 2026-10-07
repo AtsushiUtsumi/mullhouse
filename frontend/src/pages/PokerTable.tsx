@@ -165,7 +165,12 @@ export function PokerTable() {
     (nextCreds: PokerCredentials) => {
       if (!tableId) return
       wsRef.current?.close()
-      const ws = connectTableSocket(tableId, nextCreds, setPayload)
+      const ws = connectTableSocket(tableId, nextCreds, setPayload, () => {
+        clearCredentials(tableId)
+        setError('この卓は管理者によって強制終了されました')
+        setPayload(null)
+        setCreds(null)
+      })
       wsRef.current = ws
     },
     [tableId],

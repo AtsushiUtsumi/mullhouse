@@ -33,6 +33,27 @@ export interface AccountSummary {
   id: string
   username: string
   coins: number
+  is_admin?: boolean
+}
+
+export interface AdminAccountSummary {
+  id: string
+  username: string
+  coins: number
+  is_admin: boolean
+  is_frozen: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export interface AdminLogEntry {
+  id: string
+  admin_account_id: string
+  admin_username: string
+  action: string
+  target: string | null
+  detail: string | null
+  created_at: string
 }
 
 export interface SavedHandRange {

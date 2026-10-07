@@ -10,6 +10,7 @@ import { CreateAccount } from './pages/CreateAccount'
 import { Login } from './pages/Login'
 import { Settings } from './pages/Settings'
 import { HandRangeEditor } from './pages/HandRangeEditor'
+import { Admin } from './pages/Admin'
 import { AccountCorner } from './components/AccountCorner'
 import './index.css'
 
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/login" element={<Login />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/hand-range-editor" element={<HandRangeEditor />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

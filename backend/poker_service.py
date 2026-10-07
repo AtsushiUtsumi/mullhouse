@@ -220,6 +220,9 @@ class TableMeta:
     auto_next_hand_task: asyncio.Task | None = None
     level_up_task: asyncio.Task | None = None
     pending_turn_task: asyncio.Task | None = None
+    # 管理者画面から強制終了された卓。poker_domain 側の状態(進行中でも即座に閉じられる)
+    # とは別に、mullhouse 側でこのテーブルへの以後の操作を一律拒否するためのフラグ。
+    admin_closed: bool = False
 
     def summary(self) -> dict[str, Any]:
         state = self.table.get_state()
@@ -246,6 +249,11 @@ class TableMeta:
 def _require_auth(meta: TableMeta, player_id: str, token: str) -> None:
     if meta.tokens.get(player_id) != token:
         raise AuthError("invalid player_id or token")
+
+
+def _ensure_open(meta: TableMeta) -> None:
+    if meta.admin_closed:
+        raise TableNotFoundError(meta.table_id)
 
 
 def _seat_action_rank(seat_index: int, dealer_index: int, num_seats: int, phase: GamePhase) -> int:
@@ -416,6 +424,7 @@ class PokerService:
 
     async def join_table(self, table_id: str, display_name: str | None, buy_in: int) -> dict[str, Any]:
         meta = self.get_meta(table_id)
+        _ensure_open(meta)
         async with meta.lock:
             player_id = uuid.uuid4().hex[:8]
             token = secrets.token_urlsafe(24)
@@ -451,6 +460,7 @@ class PokerService:
     ) -> dict[str, Any]:
         meta = self.get_meta(table_id)
         _require_auth(meta, player_id, token)
+        _ensure_open(meta)
         domain_action = build_action(action_name, amount)
         async with meta.lock:
             result = meta.table.action(player_id=player_id, action=domain_action)
@@ -465,6 +475,7 @@ class PokerService:
     async def rebuy(self, table_id: str, player_id: str, token: str, buy_in: int) -> dict[str, Any]:
         meta = self.get_meta(table_id)
         _require_auth(meta, player_id, token)
+        _ensure_open(meta)
         async with meta.lock:
             state = meta.table.get_state()
             seated = next((p for p in state.players if p.player_id == player_id), None)
@@ -477,6 +488,39 @@ class PokerService:
         payload = build_payload(meta, player_id)
         await self._broadcast(meta)
         return payload
+
+    async def force_end_table(self, table_id: str) -> dict[str, Any]:
+        """管理者画面からの強制終了。ハンド進行中でも即座に卓を閉じ、以後の操作を拒否する。"""
+        meta = self.get_meta(table_id)
+        async with meta.lock:
+            if meta.admin_closed:
+                raise TableNotFoundError(table_id)
+            meta.admin_closed = True
+            for task in (
+                meta.auto_start_task,
+                meta.auto_next_hand_task,
+                meta.level_up_task,
+                meta.pending_turn_task,
+            ):
+                if task is not None:
+                    task.cancel()
+            meta.auto_start_task = None
+            meta.auto_next_hand_task = None
+            meta.level_up_task = None
+            meta.pending_turn_task = None
+            summary = meta.summary()
+        await self._broadcast_closed(meta)
+        self._tables.pop(table_id, None)
+        return summary
+
+    async def _broadcast_closed(self, meta: TableMeta) -> None:
+        for player_id, ws in list(meta.connections.items()):
+            try:
+                await ws.send_json({"type": "table_closed", "reason": "admin_force_end"})
+                await ws.close(code=4410)
+            except Exception:
+                pass
+            meta.connections.pop(player_id, None)
 
     def register_ws(self, meta: TableMeta, player_id: str, ws: WebSocket) -> None:
         meta.connections[player_id] = ws
