@@ -215,6 +215,7 @@ class TableMeta:
     tokens: dict[str, str] = field(default_factory=dict)
     names: dict[str, str] = field(default_factory=dict)
     connections: dict[str, WebSocket] = field(default_factory=dict)
+    spectator_connections: set[WebSocket] = field(default_factory=set)
     cpu_players: dict[str, CPUStrategy] = field(default_factory=dict)
     auto_start_task: asyncio.Task | None = None
     auto_next_hand_task: asyncio.Task | None = None
@@ -322,6 +323,22 @@ def build_payload(meta: TableMeta, player_id: str, events: list[GameEvent] | Non
         "state": serialize_state(state, meta.names),
         "waiting_for": compute_waiting_for(state, meta.timeout_seconds),
         "rebuy_available": compute_rebuy_available(state, meta.max_players, player_id, meta.allow_rebuy),
+        "max_players": meta.max_players,
+        "require_full_table": meta.require_full_table,
+        "initial_chips": meta.initial_chips,
+        "events": [serialize_event(e) for e in (events or [])],
+    }
+
+
+def build_spectator_payload(meta: TableMeta, events: list[GameEvent] | None = None) -> dict[str, Any]:
+    """座席を持たない観戦者向けのペイロード。どのプレイヤーのホールカードも
+    公開しない(viewer_player_id=None、SHOWDOWNでは全員分が公開される)。"""
+    state = meta.table.get_state(viewer_player_id=None)
+    return {
+        "type": "state",
+        "state": serialize_state(state, meta.names),
+        "waiting_for": compute_waiting_for(state, meta.timeout_seconds),
+        "rebuy_available": False,
         "max_players": meta.max_players,
         "require_full_table": meta.require_full_table,
         "initial_chips": meta.initial_chips,
@@ -455,6 +472,11 @@ class PokerService:
         _require_auth(meta, player_id, token)
         return build_payload(meta, player_id)
 
+    def get_spectate_state(self, table_id: str) -> dict[str, Any]:
+        meta = self.get_meta(table_id)
+        _ensure_open(meta)
+        return build_spectator_payload(meta)
+
     async def submit_action(
         self, table_id: str, player_id: str, token: str, action_name: str, amount: int | None
     ) -> dict[str, Any]:
@@ -521,12 +543,25 @@ class PokerService:
             except Exception:
                 pass
             meta.connections.pop(player_id, None)
+        for ws in list(meta.spectator_connections):
+            try:
+                await ws.send_json({"type": "table_closed", "reason": "admin_force_end"})
+                await ws.close(code=4410)
+            except Exception:
+                pass
+            meta.spectator_connections.discard(ws)
 
     def register_ws(self, meta: TableMeta, player_id: str, ws: WebSocket) -> None:
         meta.connections[player_id] = ws
 
     def unregister_ws(self, meta: TableMeta, player_id: str) -> None:
         meta.connections.pop(player_id, None)
+
+    def register_spectator_ws(self, meta: TableMeta, ws: WebSocket) -> None:
+        meta.spectator_connections.add(ws)
+
+    def unregister_spectator_ws(self, meta: TableMeta, ws: WebSocket) -> None:
+        meta.spectator_connections.discard(ws)
 
     def _start_threshold(self, meta: TableMeta) -> int:
         return meta.max_players if meta.require_full_table else 2
@@ -710,6 +745,13 @@ class PokerService:
                 await ws.send_json(build_payload(meta, player_id, events))
             except Exception:
                 meta.connections.pop(player_id, None)
+        if meta.spectator_connections:
+            spectator_payload = build_spectator_payload(meta, events)
+            for ws in list(meta.spectator_connections):
+                try:
+                    await ws.send_json(spectator_payload)
+                except Exception:
+                    meta.spectator_connections.discard(ws)
 
 
 poker_service = PokerService()

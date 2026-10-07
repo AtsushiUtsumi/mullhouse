@@ -24,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/poker" element={<PokerLobby />} />
         <Route path="/poker/api-docs" element={<PokerApiDocs />} />
         <Route path="/poker/:tableId" element={<PokerTable />} />
+        <Route path="/poker/:tableId/spectate" element={<PokerTable spectate />} />
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/login" element={<Login />} />
         <Route path="/settings" element={<Settings />} />

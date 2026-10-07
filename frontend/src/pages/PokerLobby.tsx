@@ -226,7 +226,7 @@ export function PokerLobby() {
           ) : (
             <ul className="table-list">
               {tables.map((t) => (
-                <li key={t.table_id}>
+                <li key={t.table_id} className="table-list-row">
                   <Link to={`/poker/${t.table_id}`} className="load-btn">
                     <span className="load-pos">{t.name}</span>
                     <span className="load-line">
@@ -239,6 +239,9 @@ export function PokerLobby() {
                       {!t.allow_rebuy && ' · リバイ禁止'}
                       {` · シンキングタイム ${t.timeout_seconds}秒`}
                     </span>
+                  </Link>
+                  <Link to={`/poker/${t.table_id}/spectate`} className="btn spectate-btn">
+                    観戦
                   </Link>
                 </li>
               ))}

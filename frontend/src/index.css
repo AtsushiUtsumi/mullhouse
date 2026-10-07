@@ -1220,6 +1220,21 @@ input:focus, select:focus {
   gap: 0.5rem;
 }
 
+.table-list-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.table-list-row .load-btn {
+  flex: 1;
+}
+
+.spectate-btn {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .poker-table-panel {
   display: flex;
   flex-direction: column;

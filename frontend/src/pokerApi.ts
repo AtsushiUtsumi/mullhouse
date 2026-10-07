@@ -78,6 +78,10 @@ export async function fetchTableState(
   return fetchJson(`/tables/${tableId}/state?player_id=${creds.player_id}&token=${creds.token}`)
 }
 
+export async function fetchSpectateState(tableId: string): Promise<PokerStatePayload> {
+  return fetchJson(`/tables/${tableId}/spectate`)
+}
+
 export async function submitAction(
   tableId: string,
   creds: PokerCredentials,
@@ -98,6 +102,25 @@ export function connectTableSocket(
 ): WebSocket {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const url = `${protocol}//${location.host}${API_BASE}/tables/${tableId}/ws?player_id=${creds.player_id}&token=${creds.token}`
+  const ws = new WebSocket(url)
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data)
+    if (data.type === 'table_closed') {
+      onClosed?.(data.reason ?? 'unknown')
+      return
+    }
+    onMessage(data)
+  }
+  return ws
+}
+
+export function connectSpectateSocket(
+  tableId: string,
+  onMessage: (payload: PokerStatePayload) => void,
+  onClosed?: (reason: string) => void,
+): WebSocket {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${protocol}//${location.host}${API_BASE}/tables/${tableId}/ws/spectate`
   const ws = new WebSocket(url)
   ws.onmessage = (ev) => {
     const data = JSON.parse(ev.data)

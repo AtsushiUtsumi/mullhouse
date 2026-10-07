@@ -4,7 +4,9 @@ import { loadAccount } from '../api'
 import { PlayingCard } from '../components/PlayingCard'
 import {
   clearCredentials,
+  connectSpectateSocket,
   connectTableSocket,
+  fetchSpectateState,
   fetchTableState,
   getTable,
   joinTable,
@@ -140,7 +142,7 @@ function playersToActAfter(state: PokerGameState, playerId: string): number {
   ).length
 }
 
-export function PokerTable() {
+export function PokerTable({ spectate = false }: { spectate?: boolean }) {
   const { tableId } = useParams<{ tableId: string }>()
   const navigate = useNavigate()
   const [creds, setCreds] = useState<PokerCredentials | null>(null)
@@ -177,7 +179,7 @@ export function PokerTable() {
   )
 
   useEffect(() => {
-    if (!tableId) return
+    if (!tableId || spectate) return
     const stored = loadCredentials(tableId)
     if (stored) {
       fetchTableState(tableId, stored)
@@ -193,17 +195,36 @@ export function PokerTable() {
     return () => {
       wsRef.current?.close()
     }
-  }, [tableId, connect])
+  }, [tableId, spectate, connect])
 
   useEffect(() => {
-    if (!tableId || creds) return
+    if (!tableId || !spectate) return
+    fetchSpectateState(tableId)
+      .then((state) => {
+        setPayload(state)
+        wsRef.current?.close()
+        wsRef.current = connectSpectateSocket(tableId, setPayload, (reason) => {
+          setError(
+            reason === 'admin_force_end' ? 'この卓は管理者によって強制終了されました' : '接続が切断されました',
+          )
+          setPayload(null)
+        })
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    return () => {
+      wsRef.current?.close()
+    }
+  }, [tableId, spectate])
+
+  useEffect(() => {
+    if (!tableId || spectate || creds) return
     getTable(tableId)
       .then((summary) => {
         setTableSummary(summary)
         if (summary.initial_chips != null) setBuyIn(summary.initial_chips)
       })
       .catch(() => {})
-  }, [tableId, creds])
+  }, [tableId, spectate, creds])
 
   useEffect(() => {
     if (payload?.initial_chips != null) setRebuyAmount(payload.initial_chips)
@@ -396,7 +417,25 @@ export function PokerTable() {
 
   if (!tableId) return null
 
-  if (!creds || !payload) {
+  if (spectate && !payload) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <div className="header-content">
+            <Link to="/poker" className="home-link">← ロビー</Link>
+            <h1>観戦</h1>
+          </div>
+        </header>
+        <main className="app-main">
+          <section className="panel">
+            <p className="hint">{error || '読み込み中...'}</p>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  if (!spectate && (!creds || !payload)) {
     return (
       <div className="app">
         <header className="app-header">
@@ -441,20 +480,22 @@ export function PokerTable() {
     )
   }
 
+  if (!payload) return null
+
   const { state, waiting_for: waitingFor, rebuy_available: rebuyAvailable } = payload
-  const isMyTurn = waitingFor?.player_id === creds.player_id
+  const isMyTurn = creds != null && waitingFor?.player_id === creds.player_id
   const displayWaitingFor = isMyTurn ? waitingFor : cachedWaitingFor
-  const me = state.players.find((p) => p.player_id === creds.player_id)
+  const me = creds ? state.players.find((p) => p.player_id === creds.player_id) : undefined
   const handInProgress = state.phase !== 'WAITING' && state.phase !== 'SHOWDOWN'
-  const isBusted = (me !== undefined && me.chips === 0 && state.phase === 'SHOWDOWN') || me === undefined
+  const isBusted = creds != null && ((me !== undefined && me.chips === 0 && state.phase === 'SHOWDOWN') || me === undefined)
   const isTableClosed = state.status === 'CLOSED'
-  const isWinner = isTableClosed && !isBusted
-  const isGameOver = isBusted || isWinner
+  const isWinner = isTableClosed && !isBusted && creds != null
+  const isGameOver = creds != null ? isBusted || isWinner : isTableClosed
 
   return (
     <div className="poker-fullscreen">
       <Link to="/poker" className="poker-float-btn poker-float-back">← ロビー</Link>
-      {!isGameOver && (
+      {creds && !isGameOver && (
         <button
           type="button"
           className="poker-float-btn poker-float-leave"
@@ -501,12 +542,12 @@ export function PokerTable() {
               </div>
             </div>
 
-            {orderSeatsFromViewer(state.players, creds.player_id).map((p, i) => {
+            {orderSeatsFromViewer(state.players, creds?.player_id ?? '').map((p, i) => {
               const { left, top } = seatPosition(i, state.players.length)
               return (
                 <div
                   key={p.player_id}
-                  className={`poker-seat ${p.player_id === state.current_player_id ? 'active' : ''} ${p.folded ? 'folded' : ''} ${p.player_id === creds.player_id ? 'me' : ''}`}
+                  className={`poker-seat ${p.player_id === state.current_player_id ? 'active' : ''} ${p.folded ? 'folded' : ''} ${creds && p.player_id === creds.player_id ? 'me' : ''}`}
                   style={{ left: `${left}%`, top: `${top}%` }}
                 >
                   <div className="poker-seat-name">
@@ -697,14 +738,16 @@ export function PokerTable() {
                   </div>
                 )}
                 <div className="poker-action-bar">
-                  <button
-                    type="button"
-                    className="btn accent"
-                    onClick={handleRebuy}
-                    disabled={!rebuyAvailable || rebuying}
-                  >
-                    {rebuying ? 'リバイ中...' : 'リバイ'}
-                  </button>
+                  {creds && (
+                    <button
+                      type="button"
+                      className="btn accent"
+                      onClick={handleRebuy}
+                      disabled={!rebuyAvailable || rebuying}
+                    >
+                      {rebuying ? 'リバイ中...' : 'リバイ'}
+                    </button>
+                  )}
                   <button type="button" className="btn primary" onClick={handleGoHome}>
                     ホームに戻る
                   </button>

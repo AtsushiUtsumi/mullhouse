@@ -14,7 +14,13 @@ from poker_domain import (
     PokerError,
     RebuyNotAllowedError,
 )
-from poker_service import AuthError, TableNotFoundError, build_payload, poker_service
+from poker_service import (
+    AuthError,
+    TableNotFoundError,
+    build_payload,
+    build_spectator_payload,
+    poker_service,
+)
 
 router = APIRouter()
 
@@ -137,6 +143,14 @@ def get_state(table_id: str, player_id: str, token: str) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail=str(e)) from e
 
 
+@router.get("/tables/{table_id}/spectate")
+def get_spectate_state(table_id: str) -> dict[str, Any]:
+    try:
+        return poker_service.get_spectate_state(table_id)
+    except TableNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Table not found") from e
+
+
 @router.post("/tables/{table_id}/action")
 async def submit_action(table_id: str, req: ActionRequest) -> dict[str, Any]:
     try:
@@ -185,3 +199,26 @@ async def table_ws(websocket: WebSocket, table_id: str, player_id: str, token: s
         pass
     finally:
         poker_service.unregister_ws(meta, player_id)
+
+
+@router.websocket("/tables/{table_id}/ws/spectate")
+async def table_spectate_ws(websocket: WebSocket, table_id: str) -> None:
+    try:
+        meta = poker_service.get_meta(table_id)
+    except TableNotFoundError:
+        await websocket.close(code=4404)
+        return
+    if meta.admin_closed:
+        await websocket.close(code=4404)
+        return
+
+    await websocket.accept()
+    poker_service.register_spectator_ws(meta, websocket)
+    try:
+        await websocket.send_json(build_spectator_payload(meta))
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        poker_service.unregister_spectator_ws(meta, websocket)
